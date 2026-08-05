@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// กติกาความปลอดภัยสำหรับ Firestore
+// เวอร์ชันนี้ทำไว้สำหรับ "ครูคนเดียวใช้งาน ไม่มีระบบล็อกอิน" ตามที่ระบุไว้
+// -> อนุญาตให้อ่าน/เขียนได้ทุกคนที่มีลิงก์เว็บแอปนี้ (ไม่ปลอดภัยหากแชร์ลิงก์ให้คนอื่น)
+//
+// คำแนะนำ: อย่าเผยแพร่ลิงก์เว็บแอปต่อสาธารณะ หรือเปลี่ยนมาใช้ Firebase Authentication
+// ภายหลังหากต้องการความปลอดภัยที่สูงขึ้น (ดูหัวข้อ "อัปเกรดเป็นระบบล็อกอิน" ใน README.md)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /classes/{classId} {
+      allow read, write: if true;
+
+      match /students/{studentId} {
+        allow read, write: if true;
+      }
+      match /assignments/{assignmentId} {
+        allow read, write: if true;
+      }
+      match /submissions/{subId} {
+        allow read, write: if true;
+      }
+    }
+  }
+}
