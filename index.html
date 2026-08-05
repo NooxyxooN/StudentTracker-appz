@@ -250,6 +250,9 @@
   <button class="btn btn-danger" id="deleteClassBtn">ลบห้องนี้</button>
   <button class="btn" id="importWorkbookBtn">📚 นำเข้าทั้งไฟล์ (หลายห้อง)</button>
   <input type="file" id="importWorkbookInput" accept=".xlsx,.xls,.csv" style="display:none" />
+  <button class="btn" id="backupBtn">💾 สำรองข้อมูลทั้งหมด</button>
+  <button class="btn" id="restoreBtn">📤 กู้คืนจากไฟล์สำรอง</button>
+  <input type="file" id="restoreFileInput" accept=".json" style="display:none" />
   <button class="btn" id="shareBtn">🔗 แชร์แอป</button>
 </header>
 
@@ -271,6 +274,12 @@
   <button class="btn" id="importBtn">📥 นำเข้ารายชื่อ (Excel/CSV)</button>
   <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" />
   <button class="btn" id="addAssignmentBtn">+ เพิ่มงาน</button>
+  <button class="btn" id="selectModeBtn">☑️ เลือกนักเรียน</button>
+  <button class="btn btn-danger" id="deleteSelectedBtn" style="display:none;">🗑 ลบ (0)</button>
+  <button class="btn" id="editSelectedBtn" style="display:none;">✏️ แก้ไข (0)</button>
+  <button class="btn" id="moveSelectedBtn" style="display:none;">↕️ ย้ายตำแหน่ง (0)</button>
+  <button class="btn" id="cancelSelectBtn" style="display:none;">ยกเลิก</button>
+  <button class="btn" id="doneEditingBtn" style="display:none;background:var(--green);">✅ เสร็จสิ้นการแก้ไข</button>
   <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อนักเรียน..." />
   <select id="categoryFilter" class="search-box" style="min-width:140px;"></select>
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#333;">
@@ -555,6 +564,122 @@ function runApp(){
     }
   });
 
+  // ---- Backup & Restore ----
+  function stripTimestamps(data){
+    const out = {};
+    Object.keys(data).forEach(k => {
+      const v = data[k];
+      if (v && typeof v === 'object' && typeof v.toDate === 'function') {
+        out[k] = v.toDate().toISOString();
+      } else {
+        out[k] = v;
+      }
+    });
+    return out;
+  }
+
+  async function buildBackup(){
+    const classesSnap = await getDocs(classesCol);
+    const backup = { app: 'KNAN', exportedAt: new Date().toISOString(), classes: [] };
+    for (const classDoc of classesSnap.docs) {
+      const classData = classDoc.data();
+      const [studentsSnap, assignmentsSnap, submissionsSnap] = await Promise.all([
+        getDocs(collection(db, `classes/${classDoc.id}/students`)),
+        getDocs(collection(db, `classes/${classDoc.id}/assignments`)),
+        getDocs(collection(db, `classes/${classDoc.id}/submissions`)),
+      ]);
+      backup.classes.push({
+        id: classDoc.id,
+        name: classData.name || '',
+        students: studentsSnap.docs.map(d => ({ id: d.id, ...stripTimestamps(d.data()) })),
+        assignments: assignmentsSnap.docs.map(d => ({ id: d.id, ...stripTimestamps(d.data()) })),
+        submissions: submissionsSnap.docs.map(d => ({ id: d.id, ...stripTimestamps(d.data()) })),
+      });
+    }
+    return backup;
+  }
+
+  document.getElementById('backupBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('backupBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'กำลังสำรองข้อมูล...';
+    try {
+      const backup = await buildBackup();
+      const totalStudents = backup.classes.reduce((sum, c) => sum + c.students.length, 0);
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `knan-backup-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      statusLine.textContent = `สำรองข้อมูลสำเร็จ: ${backup.classes.length} ห้องเรียน รวมนักเรียน ${totalStudents} คน — ไฟล์ถูกดาวน์โหลดแล้ว เก็บไว้ให้ปลอดภัย (เช่น อัปโหลดขึ้น Google Drive)`;
+      statusLine.classList.remove('err');
+    } catch (err) {
+      console.error(err);
+      alert('สำรองข้อมูลไม่สำเร็จ: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+
+  document.getElementById('restoreBtn').addEventListener('click', () => {
+    document.getElementById('restoreFileInput').click();
+  });
+
+  async function restoreSubcollection(path, items){
+    for (let i = 0; i < items.length; i += 400) {
+      const chunk = items.slice(i, i + 400);
+      const batch = writeBatch(db);
+      chunk.forEach(item => {
+        const { id, ...rest } = item;
+        if (!id) return;
+        batch.set(doc(db, path, id), rest, { merge: true });
+      });
+      await batch.commit();
+    }
+  }
+
+  document.getElementById('restoreFileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if (!backup || !Array.isArray(backup.classes)) {
+        alert('ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ KNAN (รูปแบบไม่ถูกต้อง)');
+        return;
+      }
+      const totalStudents = backup.classes.reduce((sum, c) => sum + ((c.students || []).length), 0);
+      const ok = confirm(
+        `ไฟล์นี้บันทึกเมื่อ ${backup.exportedAt || 'ไม่ทราบวันที่'}\n` +
+        `มี ${backup.classes.length} ห้องเรียน รวมนักเรียน ${totalStudents} คน\n\n` +
+        `การกู้คืนจะเขียนทับข้อมูลห้อง/นักเรียน/งานที่มี ID ตรงกับในไฟล์ และเพิ่มข้อมูลที่ยังไม่มีในระบบ ` +
+        `(จะไม่ลบข้อมูลปัจจุบันที่ไม่ได้อยู่ในไฟล์สำรอง)\n\nยืนยันกู้คืนหรือไม่?`
+      );
+      if (!ok) return;
+
+      statusLine.textContent = 'กำลังกู้คืนข้อมูล... กรุณารอสักครู่';
+      for (const c of backup.classes) {
+        if (!c.id) continue;
+        await setDoc(doc(db, 'classes', c.id), { name: c.name || '', createdAt: serverTimestamp() }, { merge: true });
+        await restoreSubcollection(`classes/${c.id}/students`, c.students || []);
+        await restoreSubcollection(`classes/${c.id}/assignments`, c.assignments || []);
+        await restoreSubcollection(`classes/${c.id}/submissions`, c.submissions || []);
+      }
+      alert(`กู้คืนข้อมูลสำเร็จ: ${backup.classes.length} ห้องเรียน รวมนักเรียน ${totalStudents} คน`);
+    } catch (err) {
+      console.error(err);
+      alert('กู้คืนข้อมูลไม่สำเร็จ: ' + err.message + '\nตรวจสอบว่าไฟล์เป็น .json ที่ได้จากการกดปุ่ม "สำรองข้อมูลทั้งหมด" เท่านั้น');
+    }
+  });
+
   function selectClass(classId){
     currentClassId = classId || null;
     if (unsubStudents) unsubStudents();
@@ -738,14 +863,136 @@ function runApp(){
     await batch.commit();
   }
 
-  async function deleteStudent(studentId){
-    if (!confirm('ลบนักเรียนคนนี้ออกจากห้อง ?')) return;
-    await deleteDoc(doc(db, `classes/${currentClassId}/students`, studentId));
-    const snap = await getDocs(collection(db, `classes/${currentClassId}/submissions`));
-    const batch = writeBatch(db);
-    snap.forEach(d => { if (d.data().studentId === studentId) batch.delete(d.ref); });
-    await batch.commit();
+  // ---- Select mode (แบบ iOS): เลือกนักเรียนหลายคนแล้ว ลบ/แก้ไข/ย้ายตำแหน่งพร้อมกัน ----
+  let selectMode = false;
+  let selectedStudentIds = new Set();
+  let editingIds = new Set(); // แถวที่ปลดล็อกให้แก้ คำนำหน้า/ชื่อ/นามสกุล ได้ชั่วคราว (ต้องกด "แก้ไข" ก่อนเท่านั้น)
+  const selectModeBtn = document.getElementById('selectModeBtn');
+  const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+  const editSelectedBtn = document.getElementById('editSelectedBtn');
+  const moveSelectedBtn = document.getElementById('moveSelectedBtn');
+  const cancelSelectBtn = document.getElementById('cancelSelectBtn');
+  const doneEditingBtn = document.getElementById('doneEditingBtn');
+
+  function updateSelectModeUI(){
+    selectModeBtn.style.display = selectMode ? 'none' : '';
+    [deleteSelectedBtn, editSelectedBtn, moveSelectedBtn, cancelSelectBtn].forEach(b => {
+      b.style.display = selectMode ? '' : 'none';
+    });
+    doneEditingBtn.style.display = editingIds.size > 0 ? '' : 'none';
+    const n = selectedStudentIds.size;
+    deleteSelectedBtn.textContent = `🗑 ลบ (${n})`;
+    editSelectedBtn.textContent = `✏️ แก้ไข (${n})`;
+    moveSelectedBtn.textContent = `↕️ ย้ายตำแหน่ง (${n})`;
+    deleteSelectedBtn.disabled = n === 0;
+    editSelectedBtn.disabled = n === 0;
+    moveSelectedBtn.disabled = n === 0;
   }
+
+  function exitSelectMode(){
+    selectMode = false;
+    selectedStudentIds = new Set();
+    updateSelectModeUI();
+  }
+
+  selectModeBtn.addEventListener('click', () => {
+    selectMode = true;
+    selectedStudentIds = new Set();
+    updateSelectModeUI();
+    render();
+  });
+
+  cancelSelectBtn.addEventListener('click', () => {
+    exitSelectMode();
+    render();
+  });
+
+  deleteSelectedBtn.addEventListener('click', async () => {
+    const ids = Array.from(selectedStudentIds);
+    if (ids.length === 0) return;
+    if (!confirm(`ลบนักเรียนที่เลือกไว้ ${ids.length} คน ออกจากห้องนี้ ?`)) return;
+    deleteSelectedBtn.disabled = true;
+    deleteSelectedBtn.textContent = 'กำลังลบ...';
+    try {
+      const subsSnap = await getDocs(collection(db, `classes/${currentClassId}/submissions`));
+      const subIdsToDelete = subsSnap.docs.filter(d => ids.includes(d.data().studentId)).map(d => d.id);
+      const ops = [
+        ...ids.map(id => ({ path: `classes/${currentClassId}/students`, id })),
+        ...subIdsToDelete.map(id => ({ path: `classes/${currentClassId}/submissions`, id })),
+      ];
+      for (let i = 0; i < ops.length; i += 400) {
+        const chunk = ops.slice(i, i + 400);
+        const batch = writeBatch(db);
+        chunk.forEach(op => batch.delete(doc(db, op.path, op.id)));
+        await batch.commit();
+      }
+      exitSelectMode();
+    } catch (err) {
+      console.error(err);
+      alert('ลบไม่สำเร็จ: ' + err.message);
+      updateSelectModeUI();
+    }
+  });
+
+  editSelectedBtn.addEventListener('click', () => {
+    const ids = Array.from(selectedStudentIds);
+    if (ids.length === 0) return;
+    // ปลดล็อกเฉพาะแถวที่เลือกไว้ให้แก้ คำนำหน้า/ชื่อ/นามสกุล ได้ตรงในตาราง
+    editingIds = new Set(ids);
+    selectMode = false;
+    selectedStudentIds = new Set();
+    updateSelectModeUI();
+    render();
+  });
+
+  doneEditingBtn.addEventListener('click', () => {
+    editingIds = new Set();
+    updateSelectModeUI();
+    render();
+  });
+
+  moveSelectedBtn.addEventListener('click', async () => {
+    const idsSet = selectedStudentIds;
+    if (idsSet.size === 0) return;
+    const maxPos = students.length;
+    const posStr = prompt(
+      `ย้ายนักเรียนที่เลือกไว้ ${idsSet.size} คน ไปเป็นเลขที่เริ่มต้นที่เท่าไหร่?\n(1 - ${maxPos})`, '1'
+    );
+    if (posStr === null) return;
+    let pos = parseInt(posStr, 10);
+    if (isNaN(pos) || pos < 1) pos = 1;
+    if (pos > maxPos) pos = maxPos;
+
+    moveSelectedBtn.disabled = true;
+    moveSelectedBtn.textContent = 'กำลังย้าย...';
+    try {
+      // เรียงตามลำดับ เลขที่ ปัจจุบัน (students มาจาก query orderBy no) แยกกลุ่มที่เลือก/ไม่เลือก
+      const moving = students.filter(s => idsSet.has(s.id));
+      const remaining = students.filter(s => !idsSet.has(s.id));
+      const insertIdx = Math.min(pos - 1, remaining.length);
+      const newOrder = [
+        ...remaining.slice(0, insertIdx),
+        ...moving,
+        ...remaining.slice(insertIdx),
+      ];
+      // รันเลขที่ใหม่ทั้งหมด 1..N ตามลำดับใหม่
+      for (let i = 0; i < newOrder.length; i += 400) {
+        const chunk = newOrder.slice(i, i + 400);
+        const batch = writeBatch(db);
+        chunk.forEach((s, j) => {
+          batch.set(doc(db, `classes/${currentClassId}/students`, s.id), { no: i + j + 1 }, { merge: true });
+        });
+        await batch.commit();
+      }
+      exitSelectMode();
+    } catch (err) {
+      console.error(err);
+      alert('ย้ายตำแหน่งไม่สำเร็จ: ' + err.message);
+      updateSelectModeUI();
+    }
+  });
+
+  updateSelectModeUI();
 
   const STICKY_COLS = [
     { key: 'no', label: 'เลขที่', width: 50 },
@@ -869,10 +1116,12 @@ function runApp(){
       th.style.background = 'var(--blue)';
       row1.appendChild(th);
     });
-    const thDel = document.createElement('th');
-    thDel.rowSpan = 2;
-    thDel.textContent = '';
-    row1.appendChild(thDel);
+    if (selectMode) {
+      const thDel = document.createElement('th');
+      thDel.rowSpan = 2;
+      thDel.textContent = '';
+      row1.appendChild(thDel);
+    }
     visibleAssignments.forEach(a => {
       const th = document.createElement('th');
       th.colSpan = 2;
@@ -988,6 +1237,12 @@ function runApp(){
     // body
     const fmt = (v) => (Math.round(v * 10) / 10).toString();
 
+    function makeReadOnlyCell(value){
+      const td = document.createElement('td');
+      td.textContent = value || '';
+      return td;
+    }
+
     function makeTextCell(value, onSave){
       const td = document.createElement('td');
       const inp = document.createElement('input');
@@ -1026,34 +1281,48 @@ function runApp(){
       tdNo.textContent = s.no;
       tr.appendChild(tdNo);
 
-      const tdPrefix = makePrefixCell(s.prefix, (v) => updateStudentField(s.id, 'prefix', v));
+      const isEditingRow = editingIds.has(s.id);
+
+      const tdPrefix = isEditingRow
+        ? makePrefixCell(s.prefix, (v) => updateStudentField(s.id, 'prefix', v))
+        : makeReadOnlyCell(s.prefix);
       tdPrefix.className = 'sticky-col';
       tdPrefix.style.left = STICKY_LEFT[1] + 'px';
       tdPrefix.style.width = STICKY_COLS[1].width + 'px';
+      if (isEditingRow) tdPrefix.style.background = '#FFF6C9';
       tr.appendChild(tdPrefix);
 
-      const tdFirst = makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v));
+      const tdFirst = isEditingRow
+        ? makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v))
+        : makeReadOnlyCell(s.name);
       tdFirst.className = 'sticky-col';
       tdFirst.style.left = STICKY_LEFT[2] + 'px';
       tdFirst.style.width = STICKY_COLS[2].width + 'px';
+      if (isEditingRow) tdFirst.style.background = '#FFF6C9';
       tr.appendChild(tdFirst);
 
-      const tdSurname = makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v));
+      const tdSurname = isEditingRow
+        ? makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v))
+        : makeReadOnlyCell(s.surname);
       tdSurname.className = 'sticky-col';
       tdSurname.style.left = STICKY_LEFT[3] + 'px';
       tdSurname.style.width = STICKY_COLS[3].width + 'px';
+      if (isEditingRow) tdSurname.style.background = '#FFF6C9';
       tr.appendChild(tdSurname);
 
-      const tdDel = document.createElement('td');
-      const delBtn = document.createElement('button');
-      delBtn.className = 'icon-btn';
-      delBtn.style.color = '#c0392b';
-      delBtn.style.opacity = '1';
-      delBtn.textContent = '✕';
-      delBtn.title = 'ลบนักเรียน';
-      delBtn.addEventListener('click', () => deleteStudent(s.id));
-      tdDel.appendChild(delBtn);
-      tr.appendChild(tdDel);
+      if (selectMode) {
+        const tdDel = document.createElement('td');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = selectedStudentIds.has(s.id);
+        cb.title = 'เลือกนักเรียนคนนี้';
+        cb.addEventListener('change', () => {
+          if (cb.checked) selectedStudentIds.add(s.id); else selectedStudentIds.delete(s.id);
+          updateSelectModeUI();
+        });
+        tdDel.appendChild(cb);
+        tr.appendChild(tdDel);
+      }
 
       visibleAssignments.forEach(a => {
         const sub = subsMap[subId(s.id, a.id)] || {};
