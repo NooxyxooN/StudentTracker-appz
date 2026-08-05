@@ -248,6 +248,8 @@
   <select id="classSelect"></select>
   <button class="btn" id="addClassBtn">+ ห้องเรียนใหม่</button>
   <button class="btn btn-danger" id="deleteClassBtn">ลบห้องนี้</button>
+  <button class="btn" id="importWorkbookBtn">📚 นำเข้าทั้งไฟล์ (หลายห้อง)</button>
+  <input type="file" id="importWorkbookInput" accept=".xlsx,.xls,.csv" style="display:none" />
   <button class="btn" id="shareBtn">🔗 แชร์แอป</button>
 </header>
 
@@ -366,12 +368,14 @@ function runApp(){
   let currentClassId = null;
   let unsubStudents = null, unsubAssignments = null, unsubSubs = null;
   let students = [], assignments = [], subsMap = {};
+  let allClasses = []; // [{id, name}] รายชื่อห้องเรียนทั้งหมด ใช้ตอนนำเข้าทั้งไฟล์
 
   // ---- Classes ----
   const classesCol = collection(db, 'classes');
   onSnapshot(query(classesCol, orderBy('createdAt', 'asc')), (snap) => {
     const prevSelected = classSelect.value;
     classSelect.innerHTML = '';
+    allClasses = snap.docs.map(d => ({ id: d.id, name: d.data().name }));
     if (snap.empty) {
       const opt = document.createElement('option');
       opt.textContent = '— ยังไม่มีห้องเรียน —';
@@ -419,6 +423,137 @@ function runApp(){
     await batchDeleteCol(`classes/${classId}/submissions`);
     await deleteDoc(doc(db, 'classes', classId));
   }
+
+  // ---- Import whole workbook: auto-create classes from student roster file ----
+  // แข็งแรงกว่า parseStudentRows เพราะรองรับไฟล์ที่มีคอลัมน์ "เลขประจำตัว" คั่นกลางด้วย
+  // โดยหาคำว่า "เด็กชาย"/"เด็กหญิง" ในแถวเพื่อยึดตำแหน่งคอลัมน์ ชื่อ/นามสกุล แทนการนับตำแหน่งคอลัมน์ตรงๆ
+  function parseRosterRows(rows){
+    const results = [];
+    rows.forEach(row => {
+      const cells = (row || []).map(c => (c === undefined || c === null) ? '' : String(c).trim());
+      const no = parseInt(cells[0], 10);
+      if (isNaN(no)) return;
+      const prefixIdx = cells.findIndex(c => c === 'เด็กชาย' || c === 'เด็กหญิง');
+      let prefix, name, surname;
+      if (prefixIdx !== -1) {
+        prefix = cells[prefixIdx];
+        name = cells[prefixIdx + 1] || '';
+        surname = cells[prefixIdx + 2] || '';
+      } else {
+        // ไม่เจอคำนำหน้าที่รู้จัก ใช้ fallback แบบเดียวกับ parseStudentRows
+        const nonEmpty = cells.slice(1).filter(c => c !== '');
+        if (nonEmpty.length >= 3) { [prefix, name, surname] = nonEmpty; }
+        else if (nonEmpty.length === 2) { [name, surname] = nonEmpty; prefix = ''; }
+        else { return; }
+      }
+      if (name) results.push({ no, prefix, name, surname });
+    });
+    return results;
+  }
+
+  function extractClassesFromWorkbook(wb){
+    const found = [];
+    wb.SheetNames.forEach(sheetName => {
+      const sheet = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      const cellText = (row, idx) => (row && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]) : '';
+
+      const titleIdxs = [];
+      rows.forEach((row, i) => {
+        if (cellText(row, 0).includes('รายชื่อนักเรียนชั้น')) titleIdxs.push(i);
+      });
+
+      if (titleIdxs.length === 0) {
+        // ไม่พบรูปแบบหัวตารางที่รู้จัก ใช้ทั้งชีทเป็นห้องเดียว ชื่อห้อง = ชื่อชีท
+        const students = parseRosterRows(rows);
+        if (students.length > 0) found.push({ className: sheetName.trim(), students });
+        return;
+      }
+
+      titleIdxs.forEach((ti, i) => {
+        const end = (i + 1 < titleIdxs.length) ? titleIdxs[i + 1] : rows.length;
+        const title = cellText(rows[ti], 0).replace(/\s+/g, ' ').trim();
+        const m = title.match(/(\d+)\s*\/\s*(\d+)/);
+        let className = m ? `ป.${m[1]}/${m[2]}` : title;
+        const program = title.match(/\(([^)]+)\)/);
+        if (program) className += ` (${program[1]})`;
+
+        // หาแถวหัวตาราง (มีคำว่า "เลขที่") ภายใน 5 แถวถัดไป เพื่อรู้ว่าข้อมูลนักเรียนเริ่มแถวไหน
+        let dataStart = ti + 3;
+        for (let r = ti + 1; r < Math.min(ti + 6, end); r++) {
+          if (cellText(rows[r], 0).includes('เลขที่')) { dataStart = r + 1; break; }
+        }
+        const block = rows.slice(dataStart, end);
+        const students = parseRosterRows(block);
+        if (students.length > 0) found.push({ className, students });
+      });
+    });
+    return found;
+  }
+
+  document.getElementById('importWorkbookBtn').addEventListener('click', () => {
+    document.getElementById('importWorkbookInput').click();
+  });
+
+  document.getElementById('importWorkbookInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      alert('โหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
+      return;
+    }
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const foundClasses = extractClassesFromWorkbook(wb);
+
+      if (foundClasses.length === 0) {
+        alert('ไม่พบรายชื่อนักเรียนในไฟล์นี้ ตรวจสอบรูปแบบไฟล์อีกครั้ง');
+        return;
+      }
+
+      const totalStudents = foundClasses.reduce((sum, c) => sum + c.students.length, 0);
+      const preview = foundClasses.slice(0, 6).map(c => `${c.className} (${c.students.length} คน)`).join(', ')
+        + (foundClasses.length > 6 ? ` และอีก ${foundClasses.length - 6} ห้อง...` : '');
+      const ok = confirm(
+        `พบ ${foundClasses.length} ห้องเรียน รวมนักเรียน ${totalStudents} คน:\n${preview}\n\n` +
+        `ห้องที่ยังไม่มีในระบบจะถูกสร้างใหม่ ห้องที่มีชื่อซ้ำอยู่แล้วจะเพิ่มรายชื่อเข้าไปเพิ่ม (ถ้าเคยนำเข้าไปแล้วอย่ากดซ้ำ จะได้รายชื่อซ้ำ)\n\n` +
+        `ยืนยันนำเข้าหรือไม่?`
+      );
+      if (!ok) return;
+
+      statusLine.textContent = 'กำลังนำเข้าข้อมูล... กรุณารอสักครู่';
+
+      for (const c of foundClasses) {
+        let classId = (allClasses.find(x => x.name === c.className) || {}).id;
+        if (!classId) {
+          const ref = await addDoc(classesCol, { name: c.className, createdAt: serverTimestamp() });
+          classId = ref.id;
+          allClasses.push({ id: classId, name: c.className });
+        }
+        // เขียนเป็นชุดๆ ชุดละไม่เกิน 400 รายการ (Firestore batch จำกัด 500 ต่อครั้ง)
+        for (let i = 0; i < c.students.length; i += 400) {
+          const chunk = c.students.slice(i, i + 400);
+          const batch = writeBatch(db);
+          chunk.forEach(p => {
+            const ref = doc(collection(db, `classes/${classId}/students`));
+            batch.set(ref, {
+              no: p.no || (i + chunk.indexOf(p) + 1),
+              prefix: p.prefix || '', name: p.name, surname: p.surname || '',
+              createdAt: serverTimestamp()
+            });
+          });
+          await batch.commit();
+        }
+      }
+
+      alert(`นำเข้าสำเร็จ ${foundClasses.length} ห้องเรียน รวม ${totalStudents} คน`);
+    } catch (err) {
+      console.error(err);
+      alert('นำเข้าไฟล์ไม่สำเร็จ: ' + err.message);
+    }
+  });
 
   function selectClass(classId){
     currentClassId = classId || null;
