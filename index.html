@@ -104,6 +104,17 @@
     background:#fff;
     z-index:1;
   }
+  /* บนจอมือถือ/แท็บเล็ตแนวตั้ง ปิดการตรึงคอลัมน์ เลขที่/คำนำหน้า/ชื่อ/นามสกุล
+     ไม่งั้นจะบังคอลัมน์คะแนนตอนเลื่อนซ้าย-ขวา ให้เลื่อนไปด้วยกันทั้งตารางแทน */
+  @media (max-width: 900px){
+    td.sticky-col{
+      position:static !important;
+      left:auto !important;
+    }
+    th.sticky-col{
+      left:auto !important;
+    }
+  }
   td.name-col{ text-align:left; min-width:110px; }
   td.summary{ background:var(--green); font-weight:600; }
   .assign-block{ border-left:3px solid var(--blue-light); }
