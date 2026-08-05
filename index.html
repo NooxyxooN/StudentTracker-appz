@@ -108,15 +108,18 @@
     background:#fff;
     z-index:1;
   }
-  /* บนจอมือถือ/แท็บเล็ตแนวตั้ง ปิดการตรึงคอลัมน์ เลขที่/คำนำหน้า/ชื่อ/นามสกุล
+  /* บนจอมือถือ/แท็บเล็ตแนวตั้ง ปิดการตรึงคอลัมน์ คำนำหน้า/ชื่อ/นามสกุล (แต่ยังตรึง "เลขที่" ไว้)
      ไม่งั้นจะบังคอลัมน์คะแนนตอนเลื่อนซ้าย-ขวา ให้เลื่อนไปด้วยกันทั้งตารางแทน */
   @media (max-width: 900px){
-    td.sticky-col{
+    td.sticky-col:not(.sticky-lock){
       position:static !important;
       left:auto !important;
     }
-    th.sticky-col{
+    th.sticky-col:not(.sticky-lock){
       left:auto !important;
+    }
+    th.sticky-lock, td.sticky-lock{
+      left:0 !important;
     }
   }
   td.name-col{ text-align:left; min-width:110px; }
@@ -725,7 +728,7 @@ function runApp(){
     STICKY_COLS.forEach((c, i) => {
       const th = c.key === 'no' ? sortableTh(c.label, 'no', 2) : document.createElement('th');
       if (c.key !== 'no') { th.textContent = c.label; th.rowSpan = 2; }
-      th.className = (th.className ? th.className + ' ' : '') + 'sticky-col';
+      th.className = (th.className ? th.className + ' ' : '') + 'sticky-col' + (c.key === 'no' ? ' sticky-lock' : '');
       th.style.left = STICKY_LEFT[i] + 'px';
       th.style.width = c.width + 'px';
       th.style.background = 'var(--blue)';
@@ -882,7 +885,7 @@ function runApp(){
       const tr = document.createElement('tr');
 
       const tdNo = document.createElement('td');
-      tdNo.className = 'sticky-col';
+      tdNo.className = 'sticky-col sticky-lock';
       tdNo.style.left = STICKY_LEFT[0] + 'px';
       tdNo.style.width = STICKY_COLS[0].width + 'px';
       tdNo.textContent = s.no;
