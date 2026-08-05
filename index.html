@@ -124,6 +124,9 @@
   }
   td.name-col{ text-align:left; min-width:110px; }
   td.summary{ background:var(--green); font-weight:600; }
+  td.summary.copyable{ cursor:pointer; }
+  td.summary.copyable:hover{ background:#cfe8db; text-decoration:underline dotted; }
+  td.summary.copyable.copied{ background:#8fd6a8 !important; color:#0c3d1f; }
   .assign-block{ border-left:3px solid var(--blue-light); }
   .cell-input{
     width:56px;
@@ -1347,10 +1350,43 @@ function runApp(){
         tr.appendChild(tdScore);
       });
 
-      [fmt(rd.totalScore), fmt(rd.convertedScore), rd.roundedScore, rd.sentCount, rd.pending].forEach(val => {
+      const summaryCells = [
+        { val: fmt(rd.totalScore), copyable: true },
+        { val: fmt(rd.convertedScore), copyable: true },
+        { val: rd.roundedScore, copyable: true },
+        { val: rd.sentCount, copyable: false },
+        { val: rd.pending, copyable: false },
+      ];
+      summaryCells.forEach(item => {
         const td = document.createElement('td');
         td.className = 'summary';
-        td.textContent = val;
+        td.textContent = item.val;
+        if (item.copyable) {
+          td.classList.add('copyable');
+          td.title = 'แตะ/คลิกเพื่อคัดลอกค่านี้';
+          td.addEventListener('click', async () => {
+            const text = String(item.val);
+            try {
+              await navigator.clipboard.writeText(text);
+            } catch (e) {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              ta.remove();
+            }
+            const original = td.textContent;
+            td.textContent = '✓ คัดลอกแล้ว';
+            td.classList.add('copied');
+            setTimeout(() => {
+              td.textContent = original;
+              td.classList.remove('copied');
+            }, 900);
+          });
+        }
         tr.appendChild(td);
       });
 
