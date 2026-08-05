@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <title>ระบบติดตามงานนักเรียน</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --blue:#1F4E78;
@@ -141,6 +143,36 @@
     text-align:center;
     color:#777;
   }
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.5);
+    z-index:50;
+    align-items:center;
+    justify-content:center;
+  }
+  .modal-box{
+    background:#fff;
+    border-radius:10px;
+    padding:24px;
+    width:90%;
+    max-width:340px;
+    text-align:center;
+    box-shadow:0 4px 20px rgba(0,0,0,0.2);
+  }
+  .modal-box h3{ margin-top:0; }
+  .modal-box p{ font-size:13px; color:#666; }
+  .share-link-row{
+    display:flex;
+    gap:6px;
+  }
+  .share-link-row input{
+    flex:1;
+    padding:8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:12px;
+  }
   .setup-box{
     max-width:520px;
     margin:60px auto;
@@ -156,6 +188,30 @@
     padding:2px 6px;
     border-radius:4px;
   }
+  .search-box{
+    padding:8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    min-width:200px;
+  }
+  .name-edit-input{
+    width:100%;
+    min-width:70px;
+    padding:4px;
+    border:1px solid transparent;
+    border-radius:4px;
+    background:transparent;
+    font-size:13px;
+    text-align:center;
+  }
+  .name-edit-input:hover, .name-edit-input:focus{
+    border-color:var(--border);
+    background:var(--yellow);
+  }
+  select.name-edit-input{ cursor:pointer; }
+  th.sortable{ cursor:pointer; user-select:none; }
+  th.sortable:hover{ text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -171,11 +227,33 @@
   <select id="classSelect"></select>
   <button class="btn" id="addClassBtn">+ ห้องเรียนใหม่</button>
   <button class="btn btn-danger" id="deleteClassBtn">ลบห้องนี้</button>
+  <button class="btn" id="shareBtn">🔗 แชร์แอป</button>
 </header>
+
+<div id="shareModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>แชร์แอปนี้</h3>
+    <p>เปิดลิงก์นี้จากอุปกรณ์อื่น หรือให้คนอื่นสแกน QR code ด้านล่างเพื่อเปิดแอปนี้ทันที</p>
+    <div class="share-link-row">
+      <input type="text" id="shareLinkInput" readonly />
+      <button class="btn" id="copyLinkBtn" style="background:var(--blue);color:#fff;">คัดลอก</button>
+    </div>
+    <div id="qrContainer" style="margin-top:16px; display:flex; justify-content:center;"></div>
+    <button class="btn" id="closeShareBtn" style="margin-top:16px;background:#eee;">ปิด</button>
+  </div>
+</div>
 
 <div class="toolbar" id="toolbar" style="display:none">
   <button class="btn" id="addStudentBtn">+ เพิ่มนักเรียน</button>
+  <button class="btn" id="importBtn">📥 นำเข้ารายชื่อ (Excel/CSV)</button>
+  <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" />
   <button class="btn" id="addAssignmentBtn">+ เพิ่มงาน</button>
+  <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อนักเรียน..." />
+  <select id="categoryFilter" class="search-box" style="min-width:140px;"></select>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#333;">
+    <input type="checkbox" id="hideCompletedToggle" style="width:16px;height:16px;" />
+    ซ่อนงานที่ส่งครบทุกคนแล้ว
+  </label>
 </div>
 
 <div class="status" id="statusLine"></div>
@@ -218,6 +296,41 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
 function runApp(){
   appHeader.style.display = 'flex';
   toolbar.style.display = 'flex';
+
+  // ---- Share app (link + QR code) ----
+  const shareBtn = document.getElementById('shareBtn');
+  const shareModal = document.getElementById('shareModal');
+  const shareLinkInput = document.getElementById('shareLinkInput');
+  const qrContainer = document.getElementById('qrContainer');
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  const closeShareBtn = document.getElementById('closeShareBtn');
+
+  shareBtn.addEventListener('click', () => {
+    const url = window.location.href;
+    shareLinkInput.value = url;
+    qrContainer.innerHTML = '';
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(qrContainer, { text: url, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+    } else {
+      qrContainer.textContent = 'โหลด QR code ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
+    }
+    shareModal.style.display = 'flex';
+  });
+
+  closeShareBtn.addEventListener('click', () => { shareModal.style.display = 'none'; });
+  shareModal.addEventListener('click', (e) => { if (e.target === shareModal) shareModal.style.display = 'none'; });
+
+  copyLinkBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(shareLinkInput.value);
+    } catch (e) {
+      shareLinkInput.select();
+      document.execCommand('copy');
+    }
+    const original = copyLinkBtn.textContent;
+    copyLinkBtn.textContent = 'คัดลอกแล้ว ✓';
+    setTimeout(() => { copyLinkBtn.textContent = original; }, 1500);
+  });
 
   let app, db;
   try {
@@ -317,27 +430,140 @@ function runApp(){
 
   document.getElementById('addStudentBtn').addEventListener('click', async () => {
     if (!currentClassId) return alert('เลือกหรือสร้างห้องเรียนก่อน');
-    const full = prompt('กรอกชื่อนักเรียน รูปแบบ: คำนำหน้า ชื่อ นามสกุล\nเช่น เด็กชาย สมชาย ใจดี');
+    const full = prompt('กรอกชื่อนักเรียน รูปแบบ: ชื่อ นามสกุล (เลือกคำนำหน้า เด็กชาย/เด็กหญิง ได้ทีหลังในตาราง)\nเช่น สมชาย ใจดี');
     if (!full) return;
     const parts = full.trim().split(/\s+/);
-    const prefix = parts[0] || '';
-    const name = parts[1] || '';
-    const surname = parts.slice(2).join(' ') || '';
+    const looksFemale = /หญิง/.test(full);
+    let prefix = looksFemale ? 'เด็กหญิง' : 'เด็กชาย';
+    let name, surname;
+    if (['เด็กชาย', 'เด็กหญิง'].includes(parts[0])) {
+      prefix = parts[0]; name = parts[1] || ''; surname = parts.slice(2).join(' ') || '';
+    } else {
+      name = parts[0] || ''; surname = parts.slice(1).join(' ') || '';
+    }
     const nextNo = students.length ? Math.max(...students.map(s => s.no || 0)) + 1 : 1;
     await addDoc(collection(db, `classes/${currentClassId}/students`), {
       no: nextNo, prefix, name, surname, createdAt: serverTimestamp()
     });
   });
 
+  async function updateStudentField(studentId, field, value){
+    await setDoc(doc(db, `classes/${currentClassId}/students`, studentId), { [field]: value }, { merge: true });
+  }
+
+  // ---- Search & sort state ----
+  let searchTerm = '';
+  let sortState = { key: null, dir: 1 };
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchTerm = e.target.value;
+    render();
+  });
+
+  // ---- Import students from Excel/CSV ----
+  function parseStudentRows(rows){
+    const headerKeywords = ['เลขที่','คำนำหน้า','ชื่อ','นามสกุล','no.','no','name','prefix'];
+    const dataRows = rows.filter(r => {
+      const cells = (r || []).map(c => (c === undefined || c === null) ? '' : String(c).trim());
+      if (cells.every(c => c === '')) return false; // skip blank rows
+      const joined = cells.join('|').toLowerCase();
+      const looksLikeHeader = headerKeywords.some(k => joined.includes(k));
+      return !looksLikeHeader;
+    });
+
+    const results = [];
+    dataRows.forEach(r => {
+      const cells = (r || []).map(c => (c === undefined || c === null) ? '' : String(c).trim());
+      const nonEmpty = cells.filter(c => c !== '');
+      if (nonEmpty.length === 0) return;
+
+      let no = null, prefix = '', name = '', surname = '';
+      if (cells.length >= 4 && cells[0] !== '' && !isNaN(Number(cells[0]))) {
+        // format: [no, prefix, name, surname, ...]
+        no = Number(cells[0]); prefix = cells[1] || ''; name = cells[2] || ''; surname = cells[3] || '';
+      } else if (nonEmpty.length >= 1 && !isNaN(Number(nonEmpty[0])) && nonEmpty.length >= 3) {
+        no = Number(nonEmpty[0]); prefix = nonEmpty[1] || ''; name = nonEmpty[2] || ''; surname = nonEmpty[3] || '';
+      } else if (nonEmpty.length === 3) {
+        [prefix, name, surname] = nonEmpty;
+      } else if (nonEmpty.length === 2) {
+        [name, surname] = nonEmpty;
+      } else if (nonEmpty.length === 1) {
+        // single cell "คำนำหน้า ชื่อ นามสกุล"
+        const parts = nonEmpty[0].split(/\s+/).filter(Boolean);
+        prefix = parts[0] || ''; name = parts[1] || ''; surname = parts.slice(2).join(' ') || '';
+      } else {
+        // many columns, no leading number: assume first 3 non-numeric-looking cells
+        [prefix, name, surname] = nonEmpty;
+      }
+      if (name) results.push({ no, prefix, name, surname });
+    });
+    return results;
+  }
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    if (!currentClassId) return alert('เลือกหรือสร้างห้องเรียนก่อน');
+    document.getElementById('importFileInput').click();
+  });
+
+  document.getElementById('importFileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || !currentClassId) return;
+    if (typeof XLSX === 'undefined') {
+      alert('โหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
+      return;
+    }
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      const parsed = parseStudentRows(rows);
+      if (parsed.length === 0) {
+        alert('ไม่พบรายชื่อนักเรียนในไฟล์นี้ ตรวจสอบว่ามีคอลัมน์ ชื่อ/นามสกุล อยู่ในชีทแรกของไฟล์');
+        return;
+      }
+      const className = classSelect.selectedOptions[0]?.textContent || '';
+      if (!confirm(`พบรายชื่อ ${parsed.length} คนในไฟล์ จะเพิ่มเข้าห้อง "${className}" หรือไม่?`)) return;
+
+      const usedNos = new Set(students.map(s => s.no));
+      let nextNo = students.length ? Math.max(...students.map(s => s.no || 0)) + 1 : 1;
+      const batch = writeBatch(db);
+      parsed.forEach(p => {
+        let no = p.no;
+        if (no === null || no === undefined || usedNos.has(no)) { no = nextNo++; }
+        usedNos.add(no);
+        const ref = doc(collection(db, `classes/${currentClassId}/students`));
+        batch.set(ref, { no, prefix: p.prefix || '', name: p.name, surname: p.surname || '', createdAt: serverTimestamp() });
+      });
+      await batch.commit();
+      alert(`นำเข้ารายชื่อสำเร็จ ${parsed.length} คน`);
+    } catch (err) {
+      console.error(err);
+      alert('อ่านไฟล์ไม่สำเร็จ: ' + err.message);
+    }
+  });
+
   document.getElementById('addAssignmentBtn').addEventListener('click', async () => {
     if (!currentClassId) return alert('เลือกหรือสร้างห้องเรียนก่อน');
     const name = prompt('ชื่องาน/ใบงาน เช่น ใบงานที่ 4');
     if (!name) return;
+    const maxStr = prompt('คะแนนเต็มของงานนี้', '10');
+    const maxScore = Number(maxStr) || 10;
+    const category = (prompt('หมวดหมู่/หน่วยการเรียน (เว้นว่างได้ ถ้าไม่แบ่งหมวด)', '') || '').trim();
     const nextOrder = assignments.length ? Math.max(...assignments.map(a => a.order || 0)) + 1 : 1;
     await addDoc(collection(db, `classes/${currentClassId}/assignments`), {
-      name, order: nextOrder, createdAt: serverTimestamp()
+      name, order: nextOrder, maxScore, category, createdAt: serverTimestamp()
     });
   });
+
+  // ---- Category filter & hide-completed toggle ----
+  let selectedCategory = 'ทั้งหมด';
+  let hideCompleted = false;
+  const catOf = (a) => (a.category && a.category.trim()) ? a.category.trim() : 'ทั่วไป';
+  const categoryFilterEl = document.getElementById('categoryFilter');
+  const hideCompletedEl = document.getElementById('hideCompletedToggle');
+  categoryFilterEl.addEventListener('change', () => { selectedCategory = categoryFilterEl.value; render(); });
+  hideCompletedEl.addEventListener('change', () => { hideCompleted = hideCompletedEl.checked; render(); });
 
   function subId(studentId, assignmentId){ return `${studentId}_${assignmentId}`; }
 
@@ -365,34 +591,152 @@ function runApp(){
     await batch.commit();
   }
 
+  const STICKY_COLS = [
+    { key: 'no', label: 'เลขที่', width: 50 },
+    { key: 'prefix', label: 'คำนำหน้า', width: 95 },
+    { key: 'name', label: 'ชื่อ', width: 95 },
+    { key: 'surname', label: 'นามสกุล', width: 110 },
+  ];
+  const STICKY_LEFT = (() => {
+    let acc = 0;
+    return STICKY_COLS.map(c => { const left = acc; acc += c.width; return left; });
+  })();
+
+  function sortableTh(label, key, rowSpan){
+    const th = document.createElement('th');
+    if (rowSpan) th.rowSpan = rowSpan;
+    th.classList.add('sortable');
+    const arrow = sortState.key === key ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
+    th.textContent = label + arrow;
+    th.title = 'คลิกเพื่อเรียงลำดับ';
+    th.addEventListener('click', () => {
+      if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = 1; }
+      render();
+    });
+    return th;
+  }
+
+  function computeRowData(){
+    const totalMaxScore = assignments.reduce((sum, a) => sum + (Number(a.maxScore) || 10), 0);
+    return students.map(s => {
+      let totalScore = 0, sentCount = 0;
+      const scores = {};
+      assignments.forEach(a => {
+        const sub = subsMap[subId(s.id, a.id)] || {};
+        scores[a.id] = (sub.score === undefined || sub.score === null) ? null : sub.score;
+        if (sub.sent) sentCount++;
+        // ไม่ติ๊กส่ง = ไม่ได้คะแนนของงานนั้น
+        if (sub.sent && typeof sub.score === 'number') totalScore += sub.score;
+      });
+      const convertedScore = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 35 : 0;
+      const roundedScore = Math.round(convertedScore);
+      const pending = assignments.length - sentCount;
+      return { student: s, scores, totalScore, convertedScore, roundedScore, sentCount, pending, totalMaxScore };
+    });
+  }
+
+  function isFullySent(a){
+    return students.length > 0 && students.every(s => !!(subsMap[subId(s.id, a.id)] || {}).sent);
+  }
+
+  function refreshCategoryOptions(){
+    const cats = ['ทั้งหมด', ...new Set(assignments.map(catOf))];
+    const prevValue = categoryFilterEl.value || selectedCategory;
+    categoryFilterEl.innerHTML = '';
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c === 'ทั้งหมด' ? 'ทุกหมวดหมู่' : c;
+      categoryFilterEl.appendChild(opt);
+    });
+    selectedCategory = cats.includes(prevValue) ? prevValue : 'ทั้งหมด';
+    categoryFilterEl.value = selectedCategory;
+  }
+
   function render(){
     if (!currentClassId) return;
     if (students.length === 0) {
       mainArea.innerHTML = '<div class="empty-state">ยังไม่มีนักเรียนในห้องนี้ — กด "+ เพิ่มนักเรียน"</div>';
       return;
     }
+
+    refreshCategoryOptions();
+    let visibleAssignments = assignments.filter(a => {
+      if (selectedCategory !== 'ทั้งหมด' && catOf(a) !== selectedCategory) return false;
+      if (hideCompleted && isFullySent(a)) return false;
+      return true;
+    });
+
+    let rowsData = computeRowData();
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      rowsData = rowsData.filter(r => `${r.student.prefix || ''}${r.student.name || ''}${r.student.surname || ''}`.toLowerCase().includes(q));
+    }
+
+    if (sortState.key) {
+      rowsData.sort((a, b) => {
+        let va, vb;
+        if (sortState.key === 'no') { va = a.student.no || 0; vb = b.student.no || 0; }
+        else if (sortState.key === 'totalScore') { va = a.totalScore; vb = b.totalScore; }
+        else if (sortState.key === 'convertedScore') { va = a.convertedScore; vb = b.convertedScore; }
+        else if (sortState.key === 'roundedScore') { va = a.roundedScore; vb = b.roundedScore; }
+        else if (sortState.key === 'sentCount') { va = a.sentCount; vb = b.sentCount; }
+        else if (sortState.key === 'pending') { va = a.pending; vb = b.pending; }
+        else if (sortState.key.startsWith('score_')) {
+          const aid = sortState.key.slice(6);
+          va = a.scores[aid]; vb = b.scores[aid];
+          va = (va === null || va === undefined) ? -Infinity : va;
+          vb = (vb === null || vb === undefined) ? -Infinity : vb;
+        } else { va = 0; vb = 0; }
+        return (va - vb) * sortState.dir;
+      });
+    }
+
+    if (rowsData.length === 0) {
+      mainArea.innerHTML = '<div class="empty-state">ไม่พบนักเรียนที่ค้นหา</div>';
+      statusLine.textContent = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · ไม่พบผลการค้นหา`;
+      return;
+    }
+
     const table = document.createElement('table');
 
     // header row 1
     const thead = document.createElement('thead');
     const row1 = document.createElement('tr');
     row1.className = 'assign-row';
-    ['เลขที่','ชื่อ-สกุล'].forEach(t => {
-      const th = document.createElement('th');
-      th.textContent = t;
-      th.rowSpan = 2;
-      th.className = 'sticky-col';
+    STICKY_COLS.forEach((c, i) => {
+      const th = c.key === 'no' ? sortableTh(c.label, 'no', 2) : document.createElement('th');
+      if (c.key !== 'no') { th.textContent = c.label; th.rowSpan = 2; }
+      th.className = (th.className ? th.className + ' ' : '') + 'sticky-col';
+      th.style.left = STICKY_LEFT[i] + 'px';
+      th.style.width = c.width + 'px';
       th.style.background = 'var(--blue)';
       row1.appendChild(th);
     });
-    assignments.forEach(a => {
+    const thDel = document.createElement('th');
+    thDel.rowSpan = 2;
+    thDel.textContent = '';
+    row1.appendChild(thDel);
+    visibleAssignments.forEach(a => {
       const th = document.createElement('th');
-      th.colSpan = 3;
+      th.colSpan = 2;
       th.className = 'assign-block';
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '3px';
+
+      const topRow = document.createElement('div');
+      topRow.style.display = 'flex';
+      topRow.style.alignItems = 'center';
+      topRow.style.gap = '4px';
       const inp = document.createElement('input');
       inp.className = 'assign-header-input';
       inp.value = a.name;
       inp.title = 'แก้ชื่องาน';
+      inp.style.width = '90px';
       inp.addEventListener('change', async () => {
         await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { name: inp.value }, { merge: true });
       });
@@ -401,54 +745,161 @@ function runApp(){
       del.textContent = '✕';
       del.title = 'ลบงานนี้';
       del.addEventListener('click', () => deleteAssignment(a.id));
-      th.appendChild(inp);
-      th.appendChild(del);
+      topRow.appendChild(inp);
+      topRow.appendChild(del);
+
+      const maxRow = document.createElement('div');
+      maxRow.style.display = 'flex';
+      maxRow.style.alignItems = 'center';
+      maxRow.style.gap = '4px';
+      maxRow.style.fontSize = '10px';
+      maxRow.style.color = '#e5eefb';
+      const maxLabel = document.createElement('span');
+      maxLabel.textContent = 'เต็ม:';
+      const maxInp = document.createElement('input');
+      maxInp.type = 'number';
+      maxInp.value = (a.maxScore === undefined || a.maxScore === null) ? 10 : a.maxScore;
+      maxInp.title = 'แก้คะแนนเต็มของงานนี้';
+      maxInp.style.width = '42px';
+      maxInp.style.fontSize = '11px';
+      maxInp.style.textAlign = 'center';
+      maxInp.style.borderRadius = '4px';
+      maxInp.style.border = 'none';
+      maxInp.style.padding = '2px';
+      maxInp.addEventListener('change', async () => {
+        const v = Number(maxInp.value) || 0;
+        await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { maxScore: v }, { merge: true });
+      });
+      maxRow.appendChild(maxLabel);
+      maxRow.appendChild(maxInp);
+
+      const catRow = document.createElement('div');
+      catRow.style.display = 'flex';
+      catRow.style.alignItems = 'center';
+      catRow.style.gap = '4px';
+      catRow.style.fontSize = '10px';
+      catRow.style.color = '#e5eefb';
+      const catLabel = document.createElement('span');
+      catLabel.textContent = 'หมวด:';
+      const catInp = document.createElement('input');
+      catInp.type = 'text';
+      catInp.value = a.category || '';
+      catInp.placeholder = 'ทั่วไป';
+      catInp.title = 'แก้หมวดหมู่/หน่วยการเรียนของงานนี้';
+      catInp.style.width = '58px';
+      catInp.style.fontSize = '11px';
+      catInp.style.textAlign = 'center';
+      catInp.style.borderRadius = '4px';
+      catInp.style.border = 'none';
+      catInp.style.padding = '2px';
+      catInp.addEventListener('change', async () => {
+        await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { category: catInp.value.trim() }, { merge: true });
+      });
+      catRow.appendChild(catLabel);
+      catRow.appendChild(catInp);
+
+      wrap.appendChild(topRow);
+      wrap.appendChild(maxRow);
+      wrap.appendChild(catRow);
+      th.appendChild(wrap);
       row1.appendChild(th);
     });
-    ['คะแนนรวม','ส่งแล้ว','ตรวจแล้ว','ค้างส่ง'].forEach(t => {
-      const th = document.createElement('th');
-      th.textContent = t;
-      th.rowSpan = 2;
-      row1.appendChild(th);
+    [
+      ['คะแนนรวม', 'totalScore'],
+      ['คะแนนแปลง (เต็ม 35)', 'convertedScore'],
+      ['ปัดคะแนน', 'roundedScore'],
+      ['ส่งแล้ว', 'sentCount'],
+      ['ค้างส่ง', 'pending'],
+    ].forEach(([label, key]) => {
+      row1.appendChild(sortableTh(label, key, 2));
     });
-    const thBlank = document.createElement('th');
-    thBlank.rowSpan = 2;
-    thBlank.textContent = '';
-    row1.appendChild(thBlank);
     thead.appendChild(row1);
 
     const row2 = document.createElement('tr');
-    assignments.forEach(() => {
-      ['ส่งแล้ว','ตรวจแล้ว','คะแนน'].forEach(sub => {
-        const th = document.createElement('th');
-        th.textContent = sub;
-        th.style.fontSize = '11px';
-        row2.appendChild(th);
-      });
+    visibleAssignments.forEach(a => {
+      const thSent = document.createElement('th');
+      thSent.textContent = 'ส่งแล้ว';
+      thSent.style.fontSize = '11px';
+      row2.appendChild(thSent);
+
+      const thScore = sortableTh('คะแนน', `score_${a.id}`);
+      thScore.style.fontSize = '11px';
+      row2.appendChild(thScore);
     });
     thead.appendChild(row2);
     table.appendChild(thead);
 
     // body
+    const fmt = (v) => (Math.round(v * 10) / 10).toString();
+
+    function makeTextCell(value, onSave){
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'name-edit-input';
+      inp.value = value || '';
+      inp.addEventListener('change', () => onSave(inp.value));
+      td.appendChild(inp);
+      return td;
+    }
+
+    function makePrefixCell(value, onSave){
+      const td = document.createElement('td');
+      const sel = document.createElement('select');
+      sel.className = 'name-edit-input';
+      ['เด็กชาย', 'เด็กหญิง'].forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt; o.textContent = opt;
+        if (value === opt) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', () => onSave(sel.value));
+      td.appendChild(sel);
+      return td;
+    }
+
     const tbody = document.createElement('tbody');
-    students.forEach(s => {
+    rowsData.forEach(rd => {
+      const s = rd.student;
       const tr = document.createElement('tr');
 
       const tdNo = document.createElement('td');
       tdNo.className = 'sticky-col';
+      tdNo.style.left = STICKY_LEFT[0] + 'px';
+      tdNo.style.width = STICKY_COLS[0].width + 'px';
       tdNo.textContent = s.no;
       tr.appendChild(tdNo);
 
-      const tdName = document.createElement('td');
-      tdName.className = 'name-col sticky-col';
-      tdName.style.left = '40px';
-      tdName.innerHTML = `${s.prefix || ''} ${s.name || ''} ${s.surname || ''}
-        <button class="icon-btn" style="color:#c0392b;opacity:1" title="ลบนักเรียน">✕</button>`;
-      tdName.querySelector('button').addEventListener('click', () => deleteStudent(s.id));
-      tr.appendChild(tdName);
+      const tdPrefix = makePrefixCell(s.prefix, (v) => updateStudentField(s.id, 'prefix', v));
+      tdPrefix.className = 'sticky-col';
+      tdPrefix.style.left = STICKY_LEFT[1] + 'px';
+      tdPrefix.style.width = STICKY_COLS[1].width + 'px';
+      tr.appendChild(tdPrefix);
 
-      let totalScore = 0, sentCount = 0, checkedCount = 0;
-      assignments.forEach(a => {
+      const tdFirst = makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v));
+      tdFirst.className = 'sticky-col';
+      tdFirst.style.left = STICKY_LEFT[2] + 'px';
+      tdFirst.style.width = STICKY_COLS[2].width + 'px';
+      tr.appendChild(tdFirst);
+
+      const tdSurname = makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v));
+      tdSurname.className = 'sticky-col';
+      tdSurname.style.left = STICKY_LEFT[3] + 'px';
+      tdSurname.style.width = STICKY_COLS[3].width + 'px';
+      tr.appendChild(tdSurname);
+
+      const tdDel = document.createElement('td');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'icon-btn';
+      delBtn.style.color = '#c0392b';
+      delBtn.style.opacity = '1';
+      delBtn.textContent = '✕';
+      delBtn.title = 'ลบนักเรียน';
+      delBtn.addEventListener('click', () => deleteStudent(s.id));
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+
+      visibleAssignments.forEach(a => {
         const sub = subsMap[subId(s.id, a.id)] || {};
         const tdSent = document.createElement('td');
         const cbSent = document.createElement('input');
@@ -457,14 +908,6 @@ function runApp(){
         cbSent.addEventListener('change', () => updateSub(s.id, a.id, { sent: cbSent.checked }));
         tdSent.appendChild(cbSent);
         tr.appendChild(tdSent);
-
-        const tdChecked = document.createElement('td');
-        const cbChecked = document.createElement('input');
-        cbChecked.type = 'checkbox';
-        cbChecked.checked = !!sub.checked;
-        cbChecked.addEventListener('change', () => updateSub(s.id, a.id, { checked: cbChecked.checked }));
-        tdChecked.appendChild(cbChecked);
-        tr.appendChild(tdChecked);
 
         const tdScore = document.createElement('td');
         const inpScore = document.createElement('input');
@@ -477,21 +920,14 @@ function runApp(){
         });
         tdScore.appendChild(inpScore);
         tr.appendChild(tdScore);
-
-        if (sub.sent) sentCount++;
-        if (sub.checked) checkedCount++;
-        if (sub.checked && typeof sub.score === 'number') totalScore += sub.score;
       });
 
-      const pending = assignments.length - sentCount;
-      [totalScore, sentCount, checkedCount, pending].forEach(val => {
+      [fmt(rd.totalScore), fmt(rd.convertedScore), rd.roundedScore, rd.sentCount, rd.pending].forEach(val => {
         const td = document.createElement('td');
         td.className = 'summary';
         td.textContent = val;
         tr.appendChild(td);
       });
-      const tdBlank = document.createElement('td');
-      tr.appendChild(tdBlank);
 
       tbody.appendChild(tr);
     });
@@ -499,7 +935,7 @@ function runApp(){
 
     mainArea.innerHTML = '';
     mainArea.appendChild(table);
-    statusLine.textContent = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · นักเรียน ${students.length} คน · งานทั้งหมด ${assignments.length} ชิ้น · ข้อมูลซิงก์แบบเรียลไทม์`;
+    statusLine.textContent = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · นักเรียน ${students.length} คน · แสดง ${visibleAssignments.length} จากทั้งหมด ${assignments.length} งาน · ข้อมูลซิงก์แบบเรียลไทม์`;
     statusLine.classList.remove('err');
   }
 
