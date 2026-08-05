@@ -1,0 +1,32 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2E75B6"/>
+      <stop offset="100%" stop-color="#1F4E78"/>
+    </linearGradient>
+    <linearGradient id="check" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE082"/>
+      <stop offset="100%" stop-color="#FFC107"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- subtle inner highlight -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="white" opacity="0.04"/>
+
+  <!-- letter K -->
+  <g fill="#FFFFFF">
+    <!-- vertical stem -->
+    <rect x="150" y="126" width="56" height="260" rx="10"/>
+    <!-- upper diagonal arm -->
+    <polygon points="206,246 206,196 322,126 384,126 254,206" />
+    <!-- lower diagonal leg -->
+    <polygon points="206,266 206,316 322,386 384,386 254,306" />
+  </g>
+
+  <!-- checkmark badge: nod to task/score tracking -->
+  <circle cx="384" cy="384" r="58" fill="url(#check)" stroke="#1F4E78" stroke-width="8"/>
+  <path d="M358 384 L378 404 L414 362" fill="none" stroke="#1F4E78" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
