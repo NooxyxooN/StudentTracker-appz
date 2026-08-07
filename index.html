@@ -127,6 +127,9 @@
   td.summary.copyable{ cursor:pointer; }
   td.summary.copyable:hover{ background:#cfe8db; text-decoration:underline dotted; }
   td.summary.copyable.copied{ background:#8fd6a8 !important; color:#0c3d1f; }
+  td.summary.toggle-col-filter{ cursor:pointer; }
+  td.summary.toggle-col-filter:hover{ background:#ffe0b2; text-decoration:underline dotted; }
+  td.summary.toggle-col-filter.active-col-filter{ background:#ff9800 !important; color:#fff; box-shadow:inset 0 0 0 2px #e65100; }
   .assign-block{ border-left:3px solid var(--blue-light); }
   .cell-input{
     width:56px;
@@ -233,6 +236,60 @@
   select.name-edit-input{ cursor:pointer; }
   th.sortable{ cursor:pointer; user-select:none; }
   th.sortable:hover{ text-decoration:underline; }
+  .tab-nav{
+    background:#fff;
+    border-bottom:1px solid var(--border);
+    padding:0 18px;
+    gap:4px;
+  }
+  .tab-btn{
+    background:none;
+    border:none;
+    padding:12px 16px;
+    cursor:pointer;
+    font-size:14px;
+    color:#555;
+    border-bottom:3px solid transparent;
+    font-family:inherit;
+  }
+  .tab-btn.active{
+    color:var(--blue);
+    border-bottom-color:var(--blue);
+    font-weight:700;
+  }
+  .page-view{ padding:18px; }
+  .feedback-card, .changelog-card{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px;
+    margin-bottom:12px;
+    max-width:640px;
+  }
+  .feedback-text{ white-space:pre-wrap; font-size:14px; line-height:1.5; }
+  .feedback-meta{
+    font-size:12px;
+    color:#888;
+    margin-top:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .status-select{
+    font-size:12px;
+    padding:4px 6px;
+    border-radius:6px;
+    border:1px solid var(--border);
+  }
+  .changelog-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:8px;
+  }
+  .changelog-header strong{ color:var(--blue); font-size:15px; }
+  .changelog-header span{ font-size:12px; color:#888; }
 </style>
 </head>
 <body>
@@ -272,6 +329,12 @@
   </div>
 </div>
 
+<nav class="tab-nav" id="tabNav" style="display:none">
+  <button class="tab-btn active" data-tab="grades">📊 ตารางคะแนน</button>
+  <button class="tab-btn" data-tab="feedback">💬 ข้อเสนอแนะ</button>
+  <button class="tab-btn" data-tab="changelog">📜 ประวัติการอัปเดต</button>
+</nav>
+
 <div class="toolbar" id="toolbar" style="display:none">
   <button class="btn" id="addStudentBtn">+ เพิ่มนักเรียน</button>
   <button class="btn" id="importBtn">📥 นำเข้ารายชื่อ (Excel/CSV)</button>
@@ -283,7 +346,7 @@
   <button class="btn" id="moveSelectedBtn" style="display:none;">↕️ ย้ายตำแหน่ง (0)</button>
   <button class="btn" id="cancelSelectBtn" style="display:none;">ยกเลิก</button>
   <button class="btn" id="doneEditingBtn" style="display:none;background:var(--green);">✅ เสร็จสิ้นการแก้ไข</button>
-  <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อนักเรียน..." />
+  <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อ/เลขที่นักเรียน..." />
   <select id="categoryFilter" class="search-box" style="min-width:140px;"></select>
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#333;">
     <input type="checkbox" id="hideCompletedToggle" style="width:16px;height:16px;" />
@@ -295,7 +358,53 @@
 
 <main id="mainArea"></main>
 
+<div id="feedbackView" class="page-view" style="display:none">
+  <div style="max-width:640px;">
+    <h3 style="margin-top:0;">ส่งความคิดเห็น / แจ้งปัญหาการใช้งาน</h3>
+    <textarea id="feedbackText" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:14px;" placeholder="พิมพ์ความคิดเห็น ข้อเสนอแนะ หรือปัญหาที่เจอระหว่างใช้งาน..."></textarea>
+    <button class="btn" id="submitFeedbackBtn" style="background:var(--blue);color:#fff;margin-top:8px;">ส่งความคิดเห็น</button>
+  </div>
+  <h3 style="margin-top:28px;">รายการที่ส่งไว้ (เรียงล่าสุดก่อน)</h3>
+  <div id="feedbackList"></div>
+</div>
+
+<div id="changelogView" class="page-view" style="display:none">
+  <h3 style="margin-top:0;">ประวัติการอัปเดต</h3>
+  <div id="changelogList"></div>
+</div>
+
+<div id="versionBadge" style="display:none;position:fixed;bottom:8px;right:12px;font-size:11px;color:#8a8a8a;background:rgba(255,255,255,0.9);padding:3px 8px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);z-index:10;"></div>
+
 <script type="module">
+// ------------------------------------------------------------------
+// เลขเวอร์ชันแอป (Semantic Versioning: MAJOR.MINOR.PATCH)
+// อัปเดตเลขนี้ทุกครั้งที่แก้ไขแอป: เพิ่มฟีเจอร์ใหม่ -> ขยับ MINOR, แก้บั๊ก -> ขยับ PATCH
+// อย่าลืมเพิ่มรายการใหม่ใน CHANGELOG ด้านล่างพร้อมกันทุกครั้ง (แสดงในแท็บ "ประวัติการอัปเดต")
+// ------------------------------------------------------------------
+const APP_VERSION = '1.4.0';
+
+const CHANGELOG = [
+  { version: '1.4.0', date: '2026-08-07', notes: [
+    'ช่อง "ส่งแล้ว" และ "ค้างส่ง" ของแต่ละนักเรียนในตาราง แตะ/คลิกตัวเลขได้: จะกรองให้ตารางแสดงเฉพาะคอลัมน์งานที่ตรงกับสถานะของนักเรียนคนนั้น (ใช้กับทุกคนพร้อมกัน) แตะซ้ำเพื่อยกเลิกและกลับไปแสดงงานทั้งหมด',
+  ]},
+  { version: '1.3.0', date: '2026-08-07', notes: [
+    'หัวคอลัมน์ "ส่งแล้ว" ของแต่ละงาน แสดงจำนวนคนที่ส่งแล้วต่อท้าย เช่น "ส่งแล้ว (5)"',
+    'คลิก/แตะหัวคอลัมน์ "ส่งแล้ว" ของงานใด สลับกรองแถวได้ 3 แบบ: เฉพาะคนส่งแล้ว → เฉพาะคนยังไม่ส่ง → แสดงทั้งหมด',
+  ]},
+  { version: '1.2.0', date: '2026-08-07', notes: [
+    'ช่องค้นหาบนแท็บตารางคะแนน ค้นหาด้วย "เลขที่" ของนักเรียนได้ด้วย ไม่ใช่แค่ชื่อ-นามสกุล-คำนำหน้า',
+  ]},
+  { version: '1.1.1', date: '2026-08-07', notes: [
+    'แก้ปุ่ม "ส่งความคิดเห็น" ที่กดแล้วไม่มีอะไรเกิดขึ้นเวลาบันทึกไม่สำเร็จ (เช่น ยังไม่ได้อัปเดต Firestore Rules) ตอนนี้จะขึ้นข้อความแจ้งเตือนสาเหตุให้ชัดเจนแทน',
+  ]},
+  { version: '1.1.0', date: '2026-08-07', notes: [
+    'เพิ่มแท็บ "💬 ข้อเสนอแนะ" ส่งความคิดเห็น/แจ้งปัญหาการใช้งานได้ในแอป เก็บเป็นรายการพร้อมสถานะ (รอดำเนินการ/กำลังทำ/เสร็จแล้ว)',
+    'เพิ่มแท็บ "📜 ประวัติการอัปเดต" แสดง log การเปลี่ยนแปลงของแต่ละเวอร์ชัน',
+  ]},
+  { version: '1.0.0', date: '2026-08-07', notes: [
+    'เวอร์ชันแรกที่นับเป็นทางการ รวมฟีเจอร์หลักทั้งหมด: ห้องเรียน/รายชื่อ/งาน/เช็คลิสต์/คะแนน, คะแนนแปลงเต็ม 35, หมวดหมู่งาน, ค้นหา/เรียงลำดับ, นำเข้า Excel/CSV (ทีละห้องและทั้งไฟล์หลายห้อง), สำรอง/กู้คืนข้อมูล, โหมดเลือกหลายรายการ (ลบ/แก้ไข/ย้ายตำแหน่ง), คลิกคัดลอกคะแนน, แชร์แอปด้วยลิงก์+QR, โลโก้ KNAN',
+  ]},
+];
 // ------------------------------------------------------------------
 // 1) วางค่า Firebase config ของคุณตรงนี้ (ดูวิธีหาได้ใน README.md)
 // ------------------------------------------------------------------
@@ -331,6 +440,10 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
 function runApp(){
   appHeader.style.display = 'flex';
   toolbar.style.display = 'flex';
+
+  const versionBadge = document.getElementById('versionBadge');
+  versionBadge.textContent = `KNAN v${APP_VERSION}`;
+  versionBadge.style.display = 'block';
 
   // ---- Share app (link + QR code) ----
   const shareBtn = document.getElementById('shareBtn');
@@ -381,6 +494,127 @@ function runApp(){
   let unsubStudents = null, unsubAssignments = null, unsubSubs = null;
   let students = [], assignments = [], subsMap = {};
   let allClasses = []; // [{id, name}] รายชื่อห้องเรียนทั้งหมด ใช้ตอนนำเข้าทั้งไฟล์
+
+  // ---- Tabs: ตารางคะแนน / ข้อเสนอแนะ / ประวัติการอัปเดต ----
+  const tabNav = document.getElementById('tabNav');
+  const feedbackView = document.getElementById('feedbackView');
+  const changelogView = document.getElementById('changelogView');
+  tabNav.style.display = 'flex';
+
+  function switchTab(tab){
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    toolbar.style.display = tab === 'grades' ? 'flex' : 'none';
+    statusLine.style.display = tab === 'grades' ? 'block' : 'none';
+    mainArea.style.display = tab === 'grades' ? 'block' : 'none';
+    feedbackView.style.display = tab === 'feedback' ? 'block' : 'none';
+    changelogView.style.display = tab === 'changelog' ? 'block' : 'none';
+    if (tab === 'changelog') renderChangelog();
+  }
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.addEventListener('click', () => switchTab(b.dataset.tab));
+  });
+
+  function renderChangelog(){
+    const container = document.getElementById('changelogList');
+    container.innerHTML = '';
+    CHANGELOG.forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'changelog-card';
+      const header = document.createElement('div');
+      header.className = 'changelog-header';
+      header.innerHTML = `<strong>v${entry.version}</strong><span>${entry.date}</span>`;
+      const ul = document.createElement('ul');
+      ul.style.margin = '0';
+      ul.style.paddingLeft = '18px';
+      entry.notes.forEach(n => {
+        const li = document.createElement('li');
+        li.style.fontSize = '13px';
+        li.style.marginBottom = '4px';
+        li.textContent = n;
+        ul.appendChild(li);
+      });
+      card.appendChild(header);
+      card.appendChild(ul);
+      container.appendChild(card);
+    });
+  }
+
+  // ---- Feedback (ข้อเสนอแนะ) เก็บเป็นรายการ task พร้อมสถานะ ----
+  const feedbackCol = collection(db, 'feedback');
+  let feedbackItems = [];
+  onSnapshot(query(feedbackCol, orderBy('createdAt', 'desc')), (snap) => {
+    feedbackItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderFeedbackList();
+  }, (err) => {
+    console.error(err);
+    const container = document.getElementById('feedbackList');
+    container.innerHTML = `<div class="empty-state" style="color:#c0392b;">โหลดรายการไม่สำเร็จ: ${err.message}<br>ตรวจสอบว่าอัปเดต Firestore Rules ให้รองรับ collection "feedback" แล้วหรือยัง</div>`;
+  });
+
+  document.getElementById('submitFeedbackBtn').addEventListener('click', async () => {
+    const ta = document.getElementById('feedbackText');
+    const btn = document.getElementById('submitFeedbackBtn');
+    const text = ta.value.trim();
+    if (!text) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'กำลังส่ง...';
+    try {
+      await addDoc(feedbackCol, { text, status: 'รอดำเนินการ', createdAt: serverTimestamp() });
+      ta.value = '';
+    } catch (err) {
+      console.error(err);
+      alert(
+        'ส่งความคิดเห็นไม่สำเร็จ: ' + err.message + '\n\n' +
+        'สาเหตุที่พบบ่อยที่สุด: ยังไม่ได้อัปเดต Firestore Rules ให้รองรับ collection "feedback"\n' +
+        'ไปที่ Firebase Console > Firestore Database > แท็บ Rules คัดลอกเนื้อหาจากไฟล์ firestore.rules ล่าสุดไปวางแทนของเดิม แล้วกด Publish'
+      );
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+
+  function renderFeedbackList(){
+    const container = document.getElementById('feedbackList');
+    container.innerHTML = '';
+    if (feedbackItems.length === 0) {
+      container.innerHTML = '<div class="empty-state">ยังไม่มีความคิดเห็นที่ส่งไว้</div>';
+      return;
+    }
+    feedbackItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'feedback-card';
+
+      const p = document.createElement('div');
+      p.className = 'feedback-text';
+      p.textContent = item.text || '';
+      card.appendChild(p);
+
+      const meta = document.createElement('div');
+      meta.className = 'feedback-meta';
+      const dateSpan = document.createElement('span');
+      dateSpan.textContent = (item.createdAt && item.createdAt.toDate)
+        ? item.createdAt.toDate().toLocaleString('th-TH')
+        : '';
+      const sel = document.createElement('select');
+      sel.className = 'status-select';
+      ['รอดำเนินการ', 'กำลังทำ', 'เสร็จแล้ว'].forEach(s => {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        if ((item.status || 'รอดำเนินการ') === s) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', async () => {
+        await setDoc(doc(db, 'feedback', item.id), { status: sel.value }, { merge: true });
+      });
+      meta.appendChild(dateSpan);
+      meta.appendChild(sel);
+      card.appendChild(meta);
+
+      container.appendChild(card);
+    });
+  }
 
   // ---- Classes ----
   const classesCol = collection(db, 'classes');
@@ -689,6 +923,10 @@ function runApp(){
     if (unsubAssignments) unsubAssignments();
     if (unsubSubs) unsubSubs();
     students = []; assignments = []; subsMap = {};
+    sentFilterAssignmentId = null;
+    sentFilterMode = null;
+    colFilterStudentId = null;
+    colFilterMode = null;
     if (!currentClassId) { render(); return; }
 
     unsubStudents = onSnapshot(
@@ -1027,9 +1265,11 @@ function runApp(){
     return students.map(s => {
       let totalScore = 0, sentCount = 0;
       const scores = {};
+      const sent = {};
       assignments.forEach(a => {
         const sub = subsMap[subId(s.id, a.id)] || {};
         scores[a.id] = (sub.score === undefined || sub.score === null) ? null : sub.score;
+        sent[a.id] = !!sub.sent;
         if (sub.sent) sentCount++;
         // ไม่ติ๊กส่ง = ไม่ได้คะแนนของงานนั้น
         if (sub.sent && typeof sub.score === 'number') totalScore += sub.score;
@@ -1037,9 +1277,18 @@ function runApp(){
       const convertedScore = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 35 : 0;
       const roundedScore = Math.round(convertedScore);
       const pending = assignments.length - sentCount;
-      return { student: s, scores, totalScore, convertedScore, roundedScore, sentCount, pending, totalMaxScore };
+      return { student: s, scores, sent, totalScore, convertedScore, roundedScore, sentCount, pending, totalMaxScore };
     });
   }
+
+  // สถานะตัวกรอง "ส่งแล้ว" ต่องาน: คลิกหัวคอลัมน์ ส่งแล้ว(N) ของงานใด สลับ เฉพาะส่งแล้ว -> เฉพาะยังไม่ส่ง -> ทั้งหมด
+  let sentFilterAssignmentId = null;
+  let sentFilterMode = null; // 'sent' | 'notSent' | null
+
+  // สถานะตัวกรองคอลัมน์งาน จากช่อง "ส่งแล้ว"/"ค้างส่ง" รายคน: คลิกตัวเลขของนักเรียนคนใด
+  // แสดงเฉพาะคอลัมน์งานที่ตรงกับสถานะนั้นของคนนั้น (ใช้กับทุกคนพร้อมกัน) คลิกซ้ำเพื่อคืนค่าเดิม
+  let colFilterStudentId = null;
+  let colFilterMode = null; // 'sent' | 'pending' | null
 
   function isFullySent(a){
     return students.length > 0 && students.every(s => !!(subsMap[subId(s.id, a.id)] || {}).sent);
@@ -1072,11 +1321,44 @@ function runApp(){
       return true;
     });
 
+    // ถ้างานที่กรอง "ส่งแล้ว/ยังไม่ส่ง" อยู่ ถูกซ่อนไปจากตัวกรองหมวดหมู่/ซ่อนงานเสร็จแล้ว ให้ยกเลิกตัวกรองนี้อัตโนมัติ
+    if (sentFilterAssignmentId && !visibleAssignments.some(a => a.id === sentFilterAssignmentId)) {
+      sentFilterAssignmentId = null;
+      sentFilterMode = null;
+    }
+
+    // ถ้านักเรียนที่กรองคอลัมน์งานไว้ ถูกลบ/ไม่มีในห้องนี้แล้ว ให้ยกเลิกตัวกรองนี้อัตโนมัติ
+    if (colFilterStudentId && !students.some(s => s.id === colFilterStudentId)) {
+      colFilterStudentId = null;
+      colFilterMode = null;
+    }
+
+    let colFilterStudentName = '';
+    if (colFilterStudentId && colFilterMode) {
+      const fs = students.find(s => s.id === colFilterStudentId);
+      colFilterStudentName = fs ? `${fs.prefix || ''} ${fs.name || ''} ${fs.surname || ''}`.trim() : '';
+      visibleAssignments = visibleAssignments.filter(a => {
+        const sub = subsMap[subId(colFilterStudentId, a.id)] || {};
+        return colFilterMode === 'sent' ? !!sub.sent : !sub.sent;
+      });
+    }
+
     let rowsData = computeRowData();
 
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      rowsData = rowsData.filter(r => `${r.student.prefix || ''}${r.student.name || ''}${r.student.surname || ''}`.toLowerCase().includes(q));
+      rowsData = rowsData.filter(r => {
+        const noStr = String(r.student.no || '');
+        const nameStr = `${r.student.prefix || ''}${r.student.name || ''}${r.student.surname || ''}`.toLowerCase();
+        return noStr.includes(q) || nameStr.includes(q);
+      });
+    }
+
+    if (sentFilterAssignmentId && sentFilterMode) {
+      rowsData = rowsData.filter(r => {
+        const isSent = !!r.sent[sentFilterAssignmentId];
+        return sentFilterMode === 'sent' ? isSent : !isSent;
+      });
     }
 
     if (sortState.key) {
@@ -1225,9 +1507,36 @@ function runApp(){
 
     const row2 = document.createElement('tr');
     visibleAssignments.forEach(a => {
+      const sentCountForA = students.filter(s => !!(subsMap[subId(s.id, a.id)] || {}).sent).length;
       const thSent = document.createElement('th');
-      thSent.textContent = 'ส่งแล้ว';
       thSent.style.fontSize = '11px';
+      thSent.classList.add('sortable');
+      thSent.title = 'คลิกเพื่อกรอง: เฉพาะส่งแล้ว / เฉพาะยังไม่ส่ง / ทั้งหมด';
+      const isActive = sentFilterAssignmentId === a.id;
+      if (!isActive) {
+        thSent.textContent = `ส่งแล้ว (${sentCountForA})`;
+      } else if (sentFilterMode === 'sent') {
+        thSent.textContent = `✅ เฉพาะส่งแล้ว (${sentCountForA})`;
+        thSent.style.background = '#1F8A3B';
+      } else {
+        const notSentCount = students.length - sentCountForA;
+        thSent.textContent = `⬜ เฉพาะยังไม่ส่ง (${notSentCount})`;
+        thSent.style.background = '#B4541F';
+      }
+      thSent.addEventListener('click', () => {
+        colFilterStudentId = null;
+        colFilterMode = null;
+        if (sentFilterAssignmentId !== a.id) {
+          sentFilterAssignmentId = a.id;
+          sentFilterMode = 'sent';
+        } else if (sentFilterMode === 'sent') {
+          sentFilterMode = 'notSent';
+        } else {
+          sentFilterAssignmentId = null;
+          sentFilterMode = null;
+        }
+        render();
+      });
       row2.appendChild(thSent);
 
       const thScore = sortableTh('คะแนน', `score_${a.id}`);
@@ -1354,8 +1663,8 @@ function runApp(){
         { val: fmt(rd.totalScore), copyable: true },
         { val: fmt(rd.convertedScore), copyable: true },
         { val: rd.roundedScore, copyable: true },
-        { val: rd.sentCount, copyable: false },
-        { val: rd.pending, copyable: false },
+        { val: rd.sentCount, copyable: false, toggleMode: 'sent' },
+        { val: rd.pending, copyable: false, toggleMode: 'pending' },
       ];
       summaryCells.forEach(item => {
         const td = document.createElement('td');
@@ -1387,6 +1696,26 @@ function runApp(){
             }, 900);
           });
         }
+        if (item.toggleMode) {
+          const isActive = colFilterStudentId === s.id && colFilterMode === item.toggleMode;
+          td.classList.add('toggle-col-filter');
+          if (isActive) td.classList.add('active-col-filter');
+          td.title = item.toggleMode === 'sent'
+            ? 'แตะเพื่อแสดงเฉพาะงานที่นักเรียนคนนี้ส่งแล้ว (ของทุกคนพร้อมกัน) แตะซ้ำเพื่อยกเลิก'
+            : 'แตะเพื่อแสดงเฉพาะงานที่นักเรียนคนนี้ยังไม่ส่ง (ของทุกคนพร้อมกัน) แตะซ้ำเพื่อยกเลิก';
+          td.addEventListener('click', () => {
+            sentFilterAssignmentId = null;
+            sentFilterMode = null;
+            if (colFilterStudentId === s.id && colFilterMode === item.toggleMode) {
+              colFilterStudentId = null;
+              colFilterMode = null;
+            } else {
+              colFilterStudentId = s.id;
+              colFilterMode = item.toggleMode;
+            }
+            render();
+          });
+        }
         tr.appendChild(td);
       });
 
@@ -1396,7 +1725,11 @@ function runApp(){
 
     mainArea.innerHTML = '';
     mainArea.appendChild(table);
-    statusLine.textContent = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · นักเรียน ${students.length} คน · แสดง ${visibleAssignments.length} จากทั้งหมด ${assignments.length} งาน · ข้อมูลซิงก์แบบเรียลไทม์`;
+    let statusMsg = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · นักเรียน ${students.length} คน · แสดง ${visibleAssignments.length} จากทั้งหมด ${assignments.length} งาน · ข้อมูลซิงก์แบบเรียลไทม์`;
+    if (colFilterStudentId && colFilterMode) {
+      statusMsg += ` · 🔎 กรองเฉพาะงานที่ "${colFilterStudentName}" ${colFilterMode === 'sent' ? 'ส่งแล้ว' : 'ยังไม่ส่ง'} (แตะตัวเลขซ้ำเพื่อยกเลิก)`;
+    }
+    statusLine.textContent = statusMsg;
     statusLine.classList.remove('err');
   }
 
