@@ -22,5 +22,17 @@ service cloud.firestore {
         allow read, write: if true;
       }
     }
+
+    match /feedback/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    match /standardsSets/{setId} {
+      allow read, write: if true;
+
+      match /indicators/{indicatorId} {
+        allow read, write: if true;
+      }
+    }
   }
 }

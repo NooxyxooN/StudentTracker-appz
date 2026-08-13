@@ -118,9 +118,6 @@
     th.sticky-col:not(.sticky-lock){
       left:auto !important;
     }
-    th.sticky-lock, td.sticky-lock{
-      left:0 !important;
-    }
   }
   td.name-col{ text-align:left; min-width:110px; }
   td.summary{ background:var(--green); font-weight:600; }
@@ -138,6 +135,38 @@
     border-radius:4px;
     text-align:center;
     background:var(--yellow);
+  }
+  .score-select{
+    cursor:pointer;
+    font-weight:600;
+    background:var(--green);
+  }
+  .score-select.is-empty{
+    background:var(--yellow);
+    font-weight:400;
+    color:#8a6d00;
+  }
+  .fold-icon{
+    cursor:pointer;
+    font-weight:bold;
+    padding:0 2px;
+    user-select:none;
+  }
+  th.fold-toggle{
+    cursor:pointer;
+    text-align:center;
+  }
+  td.folded-cell{
+    text-align:center;
+    color:#9aa5b1;
+  }
+  .col-copy-icon{
+    cursor:pointer;
+    font-size:12px;
+    padding:0 2px;
+  }
+  .col-copy-icon:hover{
+    opacity:0.75;
   }
   input[type="checkbox"]{
     width:20px;
@@ -314,6 +343,8 @@
   <button class="btn" id="restoreBtn">📤 กู้คืนจากไฟล์สำรอง</button>
   <input type="file" id="restoreFileInput" accept=".json" style="display:none" />
   <button class="btn" id="shareBtn">🔗 แชร์แอป</button>
+  <button class="btn" id="standardsBtn">📐 ชุดตัวชี้วัด</button>
+  <input type="file" id="standardsImportInput" accept=".xlsx,.xls,.csv" style="display:none" />
 </header>
 
 <div id="shareModal" class="modal-overlay" style="display:none">
@@ -326,6 +357,37 @@
     </div>
     <div id="qrContainer" style="margin-top:16px; display:flex; justify-content:center;"></div>
     <button class="btn" id="closeShareBtn" style="margin-top:16px;background:#eee;">ปิด</button>
+  </div>
+</div>
+
+<div id="standardsModal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:480px;text-align:left;">
+    <h3 style="text-align:center;">📐 ชุดตัวชี้วัด (สาระ &gt; มาตรฐาน &gt; ตัวชี้วัด)</h3>
+    <p style="text-align:center;">ชุดตัวชี้วัดใช้ร่วมกันได้หลายห้องที่เรียนวิชา/ชั้นเดียวกัน สร้าง/นำเข้าครั้งเดียว แล้วผูกกับห้องเรียนแต่ละห้อง</p>
+    <button class="btn" id="importStandardsBtn" style="background:var(--blue);color:#fff;width:100%;margin-bottom:12px;">📥 นำเข้าชุดตัวชี้วัดใหม่จาก Excel</button>
+    <div id="standardsSetList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:12px;"></div>
+    <div id="standardsLinkRow" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+      <p style="margin-top:0;">ผูกห้องเรียนที่เลือกอยู่ (<b id="standardsLinkClassName"></b>) กับชุดตัวชี้วัด:</p>
+      <select id="standardsLinkSelect" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+      <button class="btn" id="saveStandardsLinkBtn" style="background:var(--green);width:100%;">บันทึกการผูก</button>
+    </div>
+    <button class="btn" id="closeStandardsBtn" style="margin-top:16px;background:#eee;width:100%;">ปิด</button>
+  </div>
+</div>
+
+<div id="indicatorPickerModal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:420px;text-align:left;">
+    <h3 style="text-align:center;">เลือกตัวชี้วัดของงานนี้</h3>
+    <div id="indicatorPickerBody">
+      <label style="font-size:12px;color:#666;">สาระ</label>
+      <select id="pickStrand" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+      <label style="font-size:12px;color:#666;">มาตรฐาน</label>
+      <select id="pickStandard" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+      <label style="font-size:12px;color:#666;">ตัวชี้วัด</label>
+      <select id="pickIndicator" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+    </div>
+    <button class="btn" id="confirmIndicatorBtn" style="background:var(--green);width:100%;margin-top:8px;">เลือกตัวชี้วัดนี้</button>
+    <button class="btn" id="cancelIndicatorBtn" style="margin-top:8px;background:#eee;width:100%;">ยกเลิก</button>
   </div>
 </div>
 
@@ -381,9 +443,33 @@
 // อัปเดตเลขนี้ทุกครั้งที่แก้ไขแอป: เพิ่มฟีเจอร์ใหม่ -> ขยับ MINOR, แก้บั๊ก -> ขยับ PATCH
 // อย่าลืมเพิ่มรายการใหม่ใน CHANGELOG ด้านล่างพร้อมกันทุกครั้ง (แสดงในแท็บ "ประวัติการอัปเดต")
 // ------------------------------------------------------------------
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.8.0';
 
 const CHANGELOG = [
+  { version: '1.8.0', date: '2026-08-13', notes: [
+    'เพิ่มระบบ "ชุดตัวชี้วัด" (สาระ > มาตรฐาน > ตัวชี้วัด ตามหลักสูตรแกนกลาง) แทนที่ระบบหมวดหมู่ข้อความเดิม',
+    'ปุ่ม "📐 ชุดตัวชี้วัด" ที่หัวแอป — นำเข้าชุดตัวชี้วัดจากไฟล์ Excel (ชีทแบบ "ตัวชี้วัดชั้นปี") ได้โดยตรง ชุดเดียวใช้ร่วมกันได้หลายห้องที่เรียนวิชา/ชั้นเดียวกัน',
+    'ผูกห้องเรียนแต่ละห้องกับชุดตัวชี้วัดที่ต้องการได้จากปุ่มเดียวกัน',
+    'ห้องที่ผูกชุดตัวชี้วัดแล้ว ตอนเพิ่มงานหรือแก้ไขงาน (ทั้งงานเก่าและงานใหม่) จะเลือกตัวชี้วัดจากรายการ สาระ > มาตรฐาน > ตัวชี้วัด แทนการพิมพ์หมวดหมู่เอง ตัวชี้วัดเดียวเพิ่มงานได้ไม่จำกัด',
+    'ตัวกรองหมวดหมู่ในแถบเครื่องมือจะกรองตามระดับสาระโดยอัตโนมัติสำหรับห้องที่ผูกชุดตัวชี้วัดไว้',
+    'ห้องที่ยังไม่ได้ผูกชุดตัวชี้วัด ยังใช้ระบบหมวดหมู่ข้อความแบบเดิมได้ตามปกติ',
+  ]},
+  { version: '1.7.0', date: '2026-08-13', notes: [
+    'ยกเลิกไอคอนคัดลอกที่ช่องคะแนนแต่ละงาน (v1.6.1) เปลี่ยนเป็นเพิ่มไอคอน 📋 ที่หัวคอลัมน์ "ปัดคะแนน" แทน กดครั้งเดียวคัดลอกคะแนนปัดของทุกแถวที่แสดงอยู่ทั้งคอลัมน์ (ตามลำดับที่ตารางแสดง) วางลงคอลัมน์ Excel ได้เลย',
+  ]},
+  { version: '1.6.1', date: '2026-08-13', notes: [
+    'เพิ่มไอคอน 📋 มุมขวาบนของช่องคะแนนแต่ละงาน (เฉพาะตอนมีคะแนนแล้ว) กดเพื่อคัดลอกคะแนนนั้นไปคลิปบอร์ดได้ทันที',
+  ]},
+  { version: '1.6.0', date: '2026-08-13', notes: [
+    'คอลัมน์ "คำนำหน้า" พับเก็บได้เอง (กดไอคอน « ที่หัวคอลัมน์) เพื่อประหยัดพื้นที่หน้าจอ',
+    'คอลัมน์ "ชื่อ" และ "นามสกุล" ล็อกติดจอเสมอเหมือนคอลัมน์ "เลขที่" (ตรึงไว้แม้บนมือถือ) และพับเก็บพร้อมกันได้ด้วยการกดครั้งเดียว',
+    'กดไอคอน » ที่หัวคอลัมน์ที่พับไว้ เพื่อขยายกลับคืน',
+  ]},
+  { version: '1.5.0', date: '2026-08-13', notes: [
+    'เอา checkbox "ส่งแล้ว" ออก เหลือช่องคะแนนช่องเดียวต่องาน — มีคะแนน = ถือว่าส่งแล้วโดยอัตโนมัติ',
+    'แตะช่องคะแนนที่ว่าง จะมีตัวเลือกคะแนนให้เลือกแบบดรอปดาวน์ (ครึ่งหนึ่งของคะแนนเต็มถึงคะแนนเต็ม) ไม่ต้องพิมพ์เอง เลือก "ยังไม่ส่ง" เพื่อล้างคะแนน',
+    'หัวคอลัมน์ของแต่ละงานรวม "คะแนน" (เรียงลำดับ) และ "ส่งแล้ว (N)" (กรอง) ไว้ในคอลัมน์เดียว',
+  ]},
   { version: '1.4.0', date: '2026-08-07', notes: [
     'ช่อง "ส่งแล้ว" และ "ค้างส่ง" ของแต่ละนักเรียนในตาราง แตะ/คลิกตัวเลขได้: จะกรองให้ตารางแสดงเฉพาะคอลัมน์งานที่ตรงกับสถานะของนักเรียนคนนั้น (ใช้กับทุกคนพร้อมกัน) แตะซ้ำเพื่อยกเลิกและกลับไปแสดงงานทั้งหมด',
   ]},
@@ -493,7 +579,15 @@ function runApp(){
   let currentClassId = null;
   let unsubStudents = null, unsubAssignments = null, unsubSubs = null;
   let students = [], assignments = [], subsMap = {};
-  let allClasses = []; // [{id, name}] รายชื่อห้องเรียนทั้งหมด ใช้ตอนนำเข้าทั้งไฟล์
+  let allClasses = []; // [{id, name, standardsSetId}] รายชื่อห้องเรียนทั้งหมด ใช้ตอนนำเข้าทั้งไฟล์
+
+  // ---- ชุดตัวชี้วัด (สาระ > มาตรฐาน > ตัวชี้วัด) ใช้แทนหมวดหมู่ข้อความเดิม ----
+  const standardsSetsCol = collection(db, 'standardsSets');
+  let allStandardsSets = []; // [{id, name, subject, grade}] รายการชุดตัวชี้วัดทั้งหมด
+  let currentStandardsSetId = null; // ชุดที่ห้องเรียนปัจจุบันผูกอยู่
+  let unsubIndicators = null;
+  let indicatorsList = []; // รายการตัวชี้วัดของชุดที่ผูกกับห้องปัจจุบัน เรียงตาม order
+  let indicatorsMap = {}; // indicatorId -> ข้อมูลตัวชี้วัด
 
   // ---- Tabs: ตารางคะแนน / ข้อเสนอแนะ / ประวัติการอัปเดต ----
   const tabNav = document.getElementById('tabNav');
@@ -621,7 +715,7 @@ function runApp(){
   onSnapshot(query(classesCol, orderBy('createdAt', 'asc')), (snap) => {
     const prevSelected = classSelect.value;
     classSelect.innerHTML = '';
-    allClasses = snap.docs.map(d => ({ id: d.id, name: d.data().name }));
+    allClasses = snap.docs.map(d => ({ id: d.id, name: d.data().name, standardsSetId: d.data().standardsSetId || null }));
     if (snap.empty) {
       const opt = document.createElement('option');
       opt.textContent = '— ยังไม่มีห้องเรียน —';
@@ -669,6 +763,251 @@ function runApp(){
     await batchDeleteCol(`classes/${classId}/submissions`);
     await deleteDoc(doc(db, 'classes', classId));
   }
+
+  // ================== ชุดตัวชี้วัด (สาระ > มาตรฐาน > ตัวชี้วัด) ==================
+  onSnapshot(query(standardsSetsCol, orderBy('createdAt', 'asc')), (snap) => {
+    allStandardsSets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (standardsModal.style.display === 'flex') renderStandardsModal();
+  }, (err) => console.error(err));
+
+  function thaiDigitsToArabic(s){
+    const map = { '๐':'0','๑':'1','๒':'2','๓':'3','๔':'4','๕':'5','๖':'6','๗':'7','๘':'8','๙':'9' };
+    return String(s).replace(/[๐-๙]/g, ch => map[ch]);
+  }
+
+  // อ่านชีทแบบ "ตัวชี้วัดชั้นปี" (เช่น soc1/soc3) ดึงเฉพาะโครงสร้าง สาระ>มาตรฐาน>ตัวชี้วัด ส่วนบน
+  // ไม่ดึงตารางชิ้นงานด้านล่าง เพราะชิ้นงานให้ครูเพิ่มเองทีหลังในแอปได้เรื่อยๆ ต่อตัวชี้วัด
+  function parseStandardsSheet(rows){
+    let subject = '', grade = '';
+    const indicators = [];
+    let curStrand = '', curStrandOrder = 0;
+    let curStandardCode = '', curStandardOrder = 0;
+    let order = 0;
+    rows.forEach(row => {
+      const b = (row[1] !== undefined && row[1] !== null) ? String(row[1]).trim() : '';
+      const c = (row[2] !== undefined && row[2] !== null) ? String(row[2]).trim() : '';
+      const d = (row[3] !== undefined && row[3] !== null) ? String(row[3]).trim() : '';
+
+      if (!subject && b.includes('กลุ่มสาระการเรียนรู้')) {
+        subject = b.replace('กลุ่มสาระการเรียนรู้', '').trim();
+      }
+      if (!grade) {
+        const gm = b.match(/ชั้น(ประถมศึกษา|มัธยมศึกษา)ปีที่\s*([๐-๙0-9]+)/);
+        if (gm) grade = (gm[1] === 'ประถมศึกษา' ? 'ป.' : 'ม.') + thaiDigitsToArabic(gm[2]);
+      }
+      if (b.startsWith('สาระที่')) {
+        curStrand = b;
+        curStrandOrder += 1;
+        curStandardCode = ''; curStandardOrder = 0;
+        return;
+      }
+      if (c.startsWith('มาตรฐาน')) {
+        curStandardCode = c.replace('มาตรฐาน', '').trim();
+        curStandardOrder += 1;
+        return;
+      }
+      if (d && d !== 'ตัวชี้วัด') {
+        // ใช้ [\s\S]+ แทน .+ เพราะบางแถวใน Excel มีตัวขึ้นบรรทัดใหม่แทรกอยู่กลางข้อความ (. ปกติไม่กินตัวขึ้นบรรทัดใหม่)
+        const m = d.match(/^(\d+)\.\s*([\s\S]+)$/);
+        if (m && curStrand && curStandardCode) {
+          order += 1;
+          indicators.push({
+            strand: curStrand,
+            strandOrder: curStrandOrder,
+            standardCode: curStandardCode,
+            standardOrder: curStandardOrder,
+            indicatorNo: Number(m[1]),
+            indicatorText: m[2].trim().replace(/\s+/g, ' '),
+            order
+          });
+        }
+      }
+    });
+    return { subject, grade, indicators };
+  }
+
+  const standardsModal = document.getElementById('standardsModal');
+  const standardsSetList = document.getElementById('standardsSetList');
+  const standardsLinkRow = document.getElementById('standardsLinkRow');
+  const standardsLinkClassName = document.getElementById('standardsLinkClassName');
+  const standardsLinkSelect = document.getElementById('standardsLinkSelect');
+
+  function renderStandardsModal(){
+    standardsSetList.innerHTML = '';
+    if (allStandardsSets.length === 0) {
+      standardsSetList.innerHTML = '<div style="color:#777;font-size:13px;text-align:center;">ยังไม่มีชุดตัวชี้วัด — กดปุ่มด้านบนเพื่อนำเข้าจาก Excel</div>';
+    } else {
+      allStandardsSets.forEach(s => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '6px 2px';
+        row.style.borderBottom = '1px solid #eee';
+        const label = document.createElement('div');
+        label.style.fontSize = '13px';
+        label.innerHTML = `<b>${s.name || (s.subject + ' ' + s.grade)}</b><br><span style="color:#777;font-size:11px;">${s.subject || ''} · ${s.grade || ''} · ${s.indicatorCount || 0} ตัวชี้วัด</span>`;
+        const del = document.createElement('button');
+        del.className = 'icon-btn';
+        del.textContent = '✕';
+        del.title = 'ลบชุดตัวชี้วัดนี้';
+        del.addEventListener('click', async () => {
+          if (!confirm(`ลบชุดตัวชี้วัด "${s.name}" ทั้งหมด? (ห้องเรียนที่ผูกอยู่จะกลายเป็นยังไม่ได้ผูก)`)) return;
+          const isnap = await getDocs(collection(db, `standardsSets/${s.id}/indicators`));
+          const batch = writeBatch(db);
+          isnap.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          await deleteDoc(doc(db, 'standardsSets', s.id));
+        });
+        row.appendChild(label);
+        row.appendChild(del);
+        standardsSetList.appendChild(row);
+      });
+    }
+
+    if (currentClassId) {
+      const cls = allClasses.find(c => c.id === currentClassId);
+      standardsLinkRow.style.display = 'block';
+      standardsLinkClassName.textContent = cls ? cls.name : '';
+      standardsLinkSelect.innerHTML = '';
+      const noneOpt = document.createElement('option');
+      noneOpt.value = ''; noneOpt.textContent = '— ไม่ผูก (ใช้หมวดหมู่ข้อความแบบเดิม) —';
+      standardsLinkSelect.appendChild(noneOpt);
+      allStandardsSets.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name || (s.subject + ' ' + s.grade);
+        if (currentStandardsSetId === s.id) opt.selected = true;
+        standardsLinkSelect.appendChild(opt);
+      });
+      if (!currentStandardsSetId) standardsLinkSelect.value = '';
+    } else {
+      standardsLinkRow.style.display = 'none';
+    }
+  }
+
+  document.getElementById('standardsBtn').addEventListener('click', () => {
+    renderStandardsModal();
+    standardsModal.style.display = 'flex';
+  });
+  document.getElementById('closeStandardsBtn').addEventListener('click', () => { standardsModal.style.display = 'none'; });
+  standardsModal.addEventListener('click', (e) => { if (e.target === standardsModal) standardsModal.style.display = 'none'; });
+
+  document.getElementById('saveStandardsLinkBtn').addEventListener('click', async () => {
+    if (!currentClassId) return;
+    const setId = standardsLinkSelect.value || null;
+    await setDoc(doc(db, 'classes', currentClassId), { standardsSetId: setId }, { merge: true });
+    alert('บันทึกการผูกชุดตัวชี้วัดแล้ว');
+    standardsModal.style.display = 'none';
+  });
+
+  const standardsImportInput = document.getElementById('standardsImportInput');
+  document.getElementById('importStandardsBtn').addEventListener('click', () => standardsImportInput.click());
+  standardsImportInput.addEventListener('change', async () => {
+    const file = standardsImportInput.files[0];
+    standardsImportInput.value = '';
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      let sheetName = wb.SheetNames[0];
+      if (wb.SheetNames.length > 1) {
+        const picked = prompt(`พบหลายชีทในไฟล์นี้: ${wb.SheetNames.join(', ')}\nพิมพ์ชื่อชีทที่ต้องการนำเข้า (ต้องเป็นชีทตัวชี้วัด เช่น soc1, soc3)`, sheetName);
+        if (!picked) return;
+        if (!wb.SheetNames.includes(picked)) return alert('ไม่พบชีทชื่อนี้ในไฟล์');
+        sheetName = picked;
+      }
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, defval: '' });
+      const { subject, grade, indicators } = parseStandardsSheet(rows);
+      if (indicators.length === 0) {
+        return alert('ไม่พบโครงสร้างตัวชี้วัดในชีทนี้ — ตรวจว่าเป็นชีทแบบ "ตัวชี้วัดชั้นปี" หรือไม่');
+      }
+      const defaultName = `${subject || 'วิชา'} ${grade || ''}`.trim();
+      const setName = prompt(`พบตัวชี้วัด ${indicators.length} ข้อ (${subject || '?'} ${grade || '?'})\nตั้งชื่อชุดนี้ (แก้ไขได้):`, defaultName);
+      if (!setName) return;
+
+      const setRef = await addDoc(standardsSetsCol, {
+        name: setName, subject: subject || '', grade: grade || '',
+        indicatorCount: indicators.length, createdAt: serverTimestamp()
+      });
+      const chunks = [];
+      for (let i = 0; i < indicators.length; i += 400) chunks.push(indicators.slice(i, i + 400));
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(ind => {
+          const ref = doc(collection(db, `standardsSets/${setRef.id}/indicators`));
+          batch.set(ref, ind);
+        });
+        await batch.commit();
+      }
+      alert(`นำเข้าชุดตัวชี้วัด "${setName}" สำเร็จ (${indicators.length} ข้อ)`);
+      renderStandardsModal();
+    } catch (err) {
+      console.error(err);
+      alert('นำเข้าไม่สำเร็จ: ' + err.message);
+    }
+  });
+
+  // ---- ตัวเลือกตัวชี้วัด (สาระ > มาตรฐาน > ตัวชี้วัด) ใช้ตอนเพิ่ม/แก้ไขงาน ----
+  const indicatorPickerModal = document.getElementById('indicatorPickerModal');
+  const pickStrand = document.getElementById('pickStrand');
+  const pickStandard = document.getElementById('pickStandard');
+  const pickIndicator = document.getElementById('pickIndicator');
+  let indicatorPickerCallback = null;
+
+  function populatePickStandards(){
+    const strand = pickStrand.value;
+    const standards = [...new Set(indicatorsList.filter(i => i.strand === strand).map(i => i.standardCode))];
+    pickStandard.innerHTML = '';
+    standards.forEach(code => {
+      const o = document.createElement('option');
+      o.value = code; o.textContent = code;
+      pickStandard.appendChild(o);
+    });
+    populatePickIndicators();
+  }
+
+  function populatePickIndicators(){
+    const strand = pickStrand.value;
+    const standardCode = pickStandard.value;
+    const items = indicatorsList.filter(i => i.strand === strand && i.standardCode === standardCode);
+    pickIndicator.innerHTML = '';
+    items.forEach(ind => {
+      const o = document.createElement('option');
+      o.value = ind.id;
+      o.textContent = `${ind.standardCode} ข้อ ${ind.indicatorNo}. ${ind.indicatorText}`.slice(0, 80);
+      pickIndicator.appendChild(o);
+    });
+  }
+
+  pickStrand.addEventListener('change', populatePickStandards);
+  pickStandard.addEventListener('change', populatePickIndicators);
+
+  function openIndicatorPicker(onSelect){
+    if (!currentStandardsSetId || indicatorsList.length === 0) {
+      alert('ห้องนี้ยังไม่ได้ผูกชุดตัวชี้วัด — ไปที่ปุ่ม "📐 ชุดตัวชี้วัด" เพื่อผูกก่อน');
+      return;
+    }
+    indicatorPickerCallback = onSelect;
+    const strands = [...new Set(indicatorsList.map(i => i.strand))];
+    pickStrand.innerHTML = '';
+    strands.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      pickStrand.appendChild(o);
+    });
+    populatePickStandards();
+    indicatorPickerModal.style.display = 'flex';
+  }
+
+  document.getElementById('confirmIndicatorBtn').addEventListener('click', () => {
+    const indicatorId = pickIndicator.value;
+    if (!indicatorId) return alert('กรุณาเลือกตัวชี้วัด');
+    indicatorPickerModal.style.display = 'none';
+    if (indicatorPickerCallback) indicatorPickerCallback(indicatorId);
+  });
+  document.getElementById('cancelIndicatorBtn').addEventListener('click', () => { indicatorPickerModal.style.display = 'none'; });
+  indicatorPickerModal.addEventListener('click', (e) => { if (e.target === indicatorPickerModal) indicatorPickerModal.style.display = 'none'; });
 
   // ---- Import whole workbook: auto-create classes from student roster file ----
   // แข็งแรงกว่า parseStudentRows เพราะรองรับไฟล์ที่มีคอลัมน์ "เลขประจำตัว" คั่นกลางด้วย
@@ -948,6 +1287,28 @@ function runApp(){
       },
       showError
     );
+
+    loadIndicatorsForClass(currentClassId);
+  }
+
+  // ---- โหลดตัวชี้วัดของชุดที่ห้องเรียนนี้ผูกไว้ (ใช้แทนหมวดหมู่ข้อความเดิม) ----
+  function loadIndicatorsForClass(classId){
+    if (unsubIndicators) { unsubIndicators(); unsubIndicators = null; }
+    indicatorsList = [];
+    indicatorsMap = {};
+    const cls = allClasses.find(c => c.id === classId);
+    currentStandardsSetId = cls ? (cls.standardsSetId || null) : null;
+    if (!currentStandardsSetId) { render(); return; }
+    unsubIndicators = onSnapshot(
+      query(collection(db, `standardsSets/${currentStandardsSetId}/indicators`), orderBy('order', 'asc')),
+      (snap) => {
+        indicatorsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        indicatorsMap = {};
+        indicatorsList.forEach(ind => { indicatorsMap[ind.id] = ind; });
+        render();
+      },
+      showError
+    );
   }
 
   document.getElementById('addStudentBtn').addEventListener('click', async () => {
@@ -1065,23 +1426,37 @@ function runApp(){
     }
   });
 
+  async function createAssignment(name, maxScore, extra){
+    const nextOrder = assignments.length ? Math.max(...assignments.map(a => a.order || 0)) + 1 : 1;
+    await addDoc(collection(db, `classes/${currentClassId}/assignments`), {
+      name, order: nextOrder, maxScore, category: '', indicatorId: null, ...extra, createdAt: serverTimestamp()
+    });
+  }
+
   document.getElementById('addAssignmentBtn').addEventListener('click', async () => {
     if (!currentClassId) return alert('เลือกหรือสร้างห้องเรียนก่อน');
     const name = prompt('ชื่องาน/ใบงาน เช่น ใบงานที่ 4');
     if (!name) return;
     const maxStr = prompt('คะแนนเต็มของงานนี้', '10');
     const maxScore = Number(maxStr) || 10;
-    const category = (prompt('หมวดหมู่/หน่วยการเรียน (เว้นว่างได้ ถ้าไม่แบ่งหมวด)', '') || '').trim();
-    const nextOrder = assignments.length ? Math.max(...assignments.map(a => a.order || 0)) + 1 : 1;
-    await addDoc(collection(db, `classes/${currentClassId}/assignments`), {
-      name, order: nextOrder, maxScore, category, createdAt: serverTimestamp()
-    });
+
+    if (currentStandardsSetId && indicatorsList.length > 0) {
+      openIndicatorPicker(async (indicatorId) => {
+        await createAssignment(name, maxScore, { indicatorId });
+      });
+    } else {
+      const category = (prompt('หมวดหมู่/หน่วยการเรียน (เว้นว่างได้ ถ้าไม่แบ่งหมวด)', '') || '').trim();
+      await createAssignment(name, maxScore, { category });
+    }
   });
 
   // ---- Category filter & hide-completed toggle ----
   let selectedCategory = 'ทั้งหมด';
   let hideCompleted = false;
-  const catOf = (a) => (a.category && a.category.trim()) ? a.category.trim() : 'ทั่วไป';
+  const catOf = (a) => {
+    if (a.indicatorId && indicatorsMap[a.indicatorId]) return indicatorsMap[a.indicatorId].strand;
+    return (a.category && a.category.trim()) ? a.category.trim() : 'ทั่วไป';
+  };
   const categoryFilterEl = document.getElementById('categoryFilter');
   const hideCompletedEl = document.getElementById('hideCompletedToggle');
   categoryFilterEl.addEventListener('change', () => { selectedCategory = categoryFilterEl.value; render(); });
@@ -1235,16 +1610,28 @@ function runApp(){
 
   updateSelectModeUI();
 
-  const STICKY_COLS = [
-    { key: 'no', label: 'เลขที่', width: 50 },
-    { key: 'prefix', label: 'คำนำหน้า', width: 95 },
-    { key: 'name', label: 'ชื่อ', width: 95 },
-    { key: 'surname', label: 'นามสกุล', width: 110 },
-  ];
-  const STICKY_LEFT = (() => {
+  const STICKY_FULL_WIDTH = { no: 50, prefix: 95, name: 95, surname: 110 };
+  const STICKY_FOLD_WIDTH = 30;
+
+  // คำนวณคอลัมน์ระบุตัวตนใหม่ทุกครั้งที่ render() เพราะความกว้างเปลี่ยนไปตามสถานะพับเก็บ
+  // เลขที่: ล็อกติดจอเสมอ พับไม่ได้ / คำนำหน้า: พับเก็บแยกได้เอง / ชื่อ+นามสกุล: ล็อกติดจอเหมือนเลขที่ และพับเก็บพร้อมกันด้วยปุ่มเดียว
+  function getStickyCols(){
+    const cols = [
+      { key: 'no', label: 'เลขที่', width: STICKY_FULL_WIDTH.no, locked: true, foldable: false, folded: false },
+      { key: 'prefix', label: 'คำนำหน้า', width: foldPrefix ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.prefix, locked: false, foldable: true, folded: foldPrefix, foldKey: 'prefix' },
+      { key: 'name', label: 'ชื่อ', width: foldName ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.name, locked: true, foldable: true, folded: foldName, foldKey: 'name' },
+      { key: 'surname', label: 'นามสกุล', width: foldName ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.surname, locked: true, foldable: true, folded: foldName, foldKey: 'name' },
+    ];
     let acc = 0;
-    return STICKY_COLS.map(c => { const left = acc; acc += c.width; return left; });
-  })();
+    const left = cols.map(c => { const l = acc; acc += c.width; return l; });
+    return { cols, left };
+  }
+
+  function toggleFold(foldKey){
+    if (foldKey === 'prefix') foldPrefix = !foldPrefix;
+    else if (foldKey === 'name') foldName = !foldName;
+    render();
+  }
 
   function sortableTh(label, key, rowSpan){
     const th = document.createElement('th');
@@ -1289,6 +1676,11 @@ function runApp(){
   // แสดงเฉพาะคอลัมน์งานที่ตรงกับสถานะนั้นของคนนั้น (ใช้กับทุกคนพร้อมกัน) คลิกซ้ำเพื่อคืนค่าเดิม
   let colFilterStudentId = null;
   let colFilterMode = null; // 'sent' | 'pending' | null
+
+  // สถานะพับเก็บคอลัมน์ระบุตัวตน: คำนำหน้าพับแยกได้เอง, ชื่อ+นามสกุลพับพร้อมกันด้วยปุ่มเดียว
+  // ชื่อ+นามสกุลถูกล็อกให้ติดจอเหมือน "เลขที่" เสมอ (ไม่ปลดล็อกบนมือถือเหมือนเดิมอีกต่อไป)
+  let foldPrefix = false;
+  let foldName = false;
 
   function isFullySent(a){
     return students.length > 0 && students.every(s => !!(subsMap[subId(s.id, a.id)] || {}).sent);
@@ -1386,17 +1778,46 @@ function runApp(){
       return;
     }
 
+    const { cols: stickyCols, left: stickyLeft } = getStickyCols();
+
     const table = document.createElement('table');
 
     // header row 1
     const thead = document.createElement('thead');
     const row1 = document.createElement('tr');
     row1.className = 'assign-row';
-    STICKY_COLS.forEach((c, i) => {
+    stickyCols.forEach((c, i) => {
       const th = c.key === 'no' ? sortableTh(c.label, 'no', 2) : document.createElement('th');
-      if (c.key !== 'no') { th.textContent = c.label; th.rowSpan = 2; }
-      th.className = (th.className ? th.className + ' ' : '') + 'sticky-col' + (c.key === 'no' ? ' sticky-lock' : '');
-      th.style.left = STICKY_LEFT[i] + 'px';
+      if (c.key !== 'no') {
+        th.rowSpan = 2;
+        if (c.folded) {
+          const icon = document.createElement('span');
+          icon.className = 'fold-icon';
+          icon.textContent = '»';
+          icon.title = `ขยายคอลัมน์ "${c.label}"`;
+          th.appendChild(icon);
+          th.classList.add('fold-toggle');
+          th.title = `ขยายคอลัมน์ "${c.label}"`;
+          th.addEventListener('click', () => toggleFold(c.foldKey));
+        } else {
+          const labelSpan = document.createElement('span');
+          labelSpan.textContent = c.label;
+          th.appendChild(labelSpan);
+          if (c.foldable) {
+            const icon = document.createElement('span');
+            icon.className = 'fold-icon';
+            icon.textContent = ' «';
+            icon.title = `พับเก็บคอลัมน์ "${c.label}"`;
+            icon.addEventListener('click', (e) => {
+              e.stopPropagation();
+              toggleFold(c.foldKey);
+            });
+            th.appendChild(icon);
+          }
+        }
+      }
+      th.className = (th.className ? th.className + ' ' : '') + 'sticky-col' + (c.locked ? ' sticky-lock' : '');
+      th.style.left = stickyLeft[i] + 'px';
       th.style.width = c.width + 'px';
       th.style.background = 'var(--blue)';
       row1.appendChild(th);
@@ -1409,7 +1830,7 @@ function runApp(){
     }
     visibleAssignments.forEach(a => {
       const th = document.createElement('th');
-      th.colSpan = 2;
+      th.colSpan = 1;
       th.className = 'assign-block';
 
       const wrap = document.createElement('div');
@@ -1469,24 +1890,44 @@ function runApp(){
       catRow.style.gap = '4px';
       catRow.style.fontSize = '10px';
       catRow.style.color = '#e5eefb';
-      const catLabel = document.createElement('span');
-      catLabel.textContent = 'หมวด:';
-      const catInp = document.createElement('input');
-      catInp.type = 'text';
-      catInp.value = a.category || '';
-      catInp.placeholder = 'ทั่วไป';
-      catInp.title = 'แก้หมวดหมู่/หน่วยการเรียนของงานนี้';
-      catInp.style.width = '58px';
-      catInp.style.fontSize = '11px';
-      catInp.style.textAlign = 'center';
-      catInp.style.borderRadius = '4px';
-      catInp.style.border = 'none';
-      catInp.style.padding = '2px';
-      catInp.addEventListener('change', async () => {
-        await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { category: catInp.value.trim() }, { merge: true });
-      });
-      catRow.appendChild(catLabel);
-      catRow.appendChild(catInp);
+
+      if (currentStandardsSetId && indicatorsList.length > 0) {
+        const catLabel = document.createElement('span');
+        catLabel.textContent = 'ตัวชี้วัด:';
+        const indBadge = document.createElement('span');
+        const ind = a.indicatorId ? indicatorsMap[a.indicatorId] : null;
+        indBadge.textContent = ind ? ind.standardCode + ' ข้อ ' + ind.indicatorNo : 'ยังไม่ระบุ ▾';
+        indBadge.title = ind ? ind.indicatorText : 'แตะเพื่อเลือกตัวชี้วัดของงานนี้';
+        indBadge.style.cursor = 'pointer';
+        indBadge.style.textDecoration = 'underline dotted';
+        indBadge.style.fontSize = '11px';
+        indBadge.addEventListener('click', () => {
+          openIndicatorPicker(async (indicatorId) => {
+            await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { indicatorId, category: '' }, { merge: true });
+          });
+        });
+        catRow.appendChild(catLabel);
+        catRow.appendChild(indBadge);
+      } else {
+        const catLabel = document.createElement('span');
+        catLabel.textContent = 'หมวด:';
+        const catInp = document.createElement('input');
+        catInp.type = 'text';
+        catInp.value = a.category || '';
+        catInp.placeholder = 'ทั่วไป';
+        catInp.title = 'แก้หมวดหมู่/หน่วยการเรียนของงานนี้';
+        catInp.style.width = '58px';
+        catInp.style.fontSize = '11px';
+        catInp.style.textAlign = 'center';
+        catInp.style.borderRadius = '4px';
+        catInp.style.border = 'none';
+        catInp.style.padding = '2px';
+        catInp.addEventListener('change', async () => {
+          await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { category: catInp.value.trim() }, { merge: true });
+        });
+        catRow.appendChild(catLabel);
+        catRow.appendChild(catInp);
+      }
 
       wrap.appendChild(topRow);
       wrap.appendChild(maxRow);
@@ -1501,29 +1942,77 @@ function runApp(){
       ['ส่งแล้ว', 'sentCount'],
       ['ค้างส่ง', 'pending'],
     ].forEach(([label, key]) => {
-      row1.appendChild(sortableTh(label, key, 2));
+      const th = sortableTh(label, key, 2);
+      if (key === 'roundedScore') {
+        const icon = document.createElement('span');
+        icon.className = 'col-copy-icon';
+        icon.textContent = '📋';
+        icon.title = 'คัดลอกคะแนนปัดทั้งคอลัมน์ (ตามลำดับที่ตารางแสดงอยู่ตอนนี้) วางลงคอลัมน์ Excel ได้เลย';
+        icon.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const text = rowsData.map(r => r.roundedScore).join('\n');
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (err) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          const original = icon.textContent;
+          icon.textContent = '✓';
+          setTimeout(() => { icon.textContent = original; }, 900);
+        });
+        th.appendChild(icon);
+      }
+      row1.appendChild(th);
     });
     thead.appendChild(row1);
 
     const row2 = document.createElement('tr');
     visibleAssignments.forEach(a => {
       const sentCountForA = students.filter(s => !!(subsMap[subId(s.id, a.id)] || {}).sent).length;
-      const thSent = document.createElement('th');
-      thSent.style.fontSize = '11px';
-      thSent.classList.add('sortable');
-      thSent.title = 'คลิกเพื่อกรอง: เฉพาะส่งแล้ว / เฉพาะยังไม่ส่ง / ทั้งหมด';
+      const th = document.createElement('th');
+      th.style.fontSize = '11px';
+      th.style.padding = '0';
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+
+      const scoreLabel = document.createElement('div');
+      scoreLabel.classList.add('sortable');
+      scoreLabel.style.padding = '4px 2px';
+      const arrow = sortState.key === `score_${a.id}` ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
+      scoreLabel.textContent = 'คะแนน' + arrow;
+      scoreLabel.title = 'คลิกเพื่อเรียงลำดับตามคะแนนงานนี้';
+      scoreLabel.addEventListener('click', () => {
+        const key = `score_${a.id}`;
+        if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = 1; }
+        render();
+      });
+
+      const sentLabel = document.createElement('div');
+      sentLabel.style.padding = '3px 2px';
+      sentLabel.style.borderTop = '1px solid rgba(255,255,255,0.25)';
+      sentLabel.classList.add('sortable');
+      sentLabel.title = 'คลิกเพื่อกรอง: เฉพาะส่งแล้ว / เฉพาะยังไม่ส่ง / ทั้งหมด';
       const isActive = sentFilterAssignmentId === a.id;
       if (!isActive) {
-        thSent.textContent = `ส่งแล้ว (${sentCountForA})`;
+        sentLabel.textContent = `ส่งแล้ว (${sentCountForA})`;
       } else if (sentFilterMode === 'sent') {
-        thSent.textContent = `✅ เฉพาะส่งแล้ว (${sentCountForA})`;
-        thSent.style.background = '#1F8A3B';
+        sentLabel.textContent = `✅ ส่งแล้ว (${sentCountForA})`;
+        sentLabel.style.background = '#1F8A3B';
       } else {
         const notSentCount = students.length - sentCountForA;
-        thSent.textContent = `⬜ เฉพาะยังไม่ส่ง (${notSentCount})`;
-        thSent.style.background = '#B4541F';
+        sentLabel.textContent = `⬜ ยังไม่ส่ง (${notSentCount})`;
+        sentLabel.style.background = '#B4541F';
       }
-      thSent.addEventListener('click', () => {
+      sentLabel.addEventListener('click', () => {
         colFilterStudentId = null;
         colFilterMode = null;
         if (sentFilterAssignmentId !== a.id) {
@@ -1537,11 +2026,11 @@ function runApp(){
         }
         render();
       });
-      row2.appendChild(thSent);
 
-      const thScore = sortableTh('คะแนน', `score_${a.id}`);
-      thScore.style.fontSize = '11px';
-      row2.appendChild(thScore);
+      wrap.appendChild(scoreLabel);
+      wrap.appendChild(sentLabel);
+      th.appendChild(wrap);
+      row2.appendChild(th);
     });
     thead.appendChild(row2);
     table.appendChild(thead);
@@ -1552,6 +2041,13 @@ function runApp(){
     function makeReadOnlyCell(value){
       const td = document.createElement('td');
       td.textContent = value || '';
+      return td;
+    }
+
+    function makeFoldedCell(){
+      const td = document.createElement('td');
+      td.className = 'folded-cell';
+      td.textContent = '⋯';
       return td;
     }
 
@@ -1588,38 +2084,44 @@ function runApp(){
 
       const tdNo = document.createElement('td');
       tdNo.className = 'sticky-col sticky-lock';
-      tdNo.style.left = STICKY_LEFT[0] + 'px';
-      tdNo.style.width = STICKY_COLS[0].width + 'px';
+      tdNo.style.left = stickyLeft[0] + 'px';
+      tdNo.style.width = stickyCols[0].width + 'px';
       tdNo.textContent = s.no;
       tr.appendChild(tdNo);
 
       const isEditingRow = editingIds.has(s.id);
 
-      const tdPrefix = isEditingRow
-        ? makePrefixCell(s.prefix, (v) => updateStudentField(s.id, 'prefix', v))
-        : makeReadOnlyCell(s.prefix);
-      tdPrefix.className = 'sticky-col';
-      tdPrefix.style.left = STICKY_LEFT[1] + 'px';
-      tdPrefix.style.width = STICKY_COLS[1].width + 'px';
-      if (isEditingRow) tdPrefix.style.background = '#FFF6C9';
+      const tdPrefix = foldPrefix
+        ? makeFoldedCell()
+        : (isEditingRow
+          ? makePrefixCell(s.prefix, (v) => updateStudentField(s.id, 'prefix', v))
+          : makeReadOnlyCell(s.prefix));
+      tdPrefix.className = (tdPrefix.className ? tdPrefix.className + ' ' : '') + 'sticky-col';
+      tdPrefix.style.left = stickyLeft[1] + 'px';
+      tdPrefix.style.width = stickyCols[1].width + 'px';
+      if (isEditingRow && !foldPrefix) tdPrefix.style.background = '#FFF6C9';
       tr.appendChild(tdPrefix);
 
-      const tdFirst = isEditingRow
-        ? makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v))
-        : makeReadOnlyCell(s.name);
-      tdFirst.className = 'sticky-col';
-      tdFirst.style.left = STICKY_LEFT[2] + 'px';
-      tdFirst.style.width = STICKY_COLS[2].width + 'px';
-      if (isEditingRow) tdFirst.style.background = '#FFF6C9';
+      const tdFirst = foldName
+        ? makeFoldedCell()
+        : (isEditingRow
+          ? makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v))
+          : makeReadOnlyCell(s.name));
+      tdFirst.className = (tdFirst.className ? tdFirst.className + ' ' : '') + 'sticky-col sticky-lock';
+      tdFirst.style.left = stickyLeft[2] + 'px';
+      tdFirst.style.width = stickyCols[2].width + 'px';
+      if (isEditingRow && !foldName) tdFirst.style.background = '#FFF6C9';
       tr.appendChild(tdFirst);
 
-      const tdSurname = isEditingRow
-        ? makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v))
-        : makeReadOnlyCell(s.surname);
-      tdSurname.className = 'sticky-col';
-      tdSurname.style.left = STICKY_LEFT[3] + 'px';
-      tdSurname.style.width = STICKY_COLS[3].width + 'px';
-      if (isEditingRow) tdSurname.style.background = '#FFF6C9';
+      const tdSurname = foldName
+        ? makeFoldedCell()
+        : (isEditingRow
+          ? makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v))
+          : makeReadOnlyCell(s.surname));
+      tdSurname.className = (tdSurname.className ? tdSurname.className + ' ' : '') + 'sticky-col sticky-lock';
+      tdSurname.style.left = stickyLeft[3] + 'px';
+      tdSurname.style.width = stickyCols[3].width + 'px';
+      if (isEditingRow && !foldName) tdSurname.style.background = '#FFF6C9';
       tr.appendChild(tdSurname);
 
       if (selectMode) {
@@ -1638,24 +2140,39 @@ function runApp(){
 
       visibleAssignments.forEach(a => {
         const sub = subsMap[subId(s.id, a.id)] || {};
-        const tdSent = document.createElement('td');
-        const cbSent = document.createElement('input');
-        cbSent.type = 'checkbox';
-        cbSent.checked = !!sub.sent;
-        cbSent.addEventListener('change', () => updateSub(s.id, a.id, { sent: cbSent.checked }));
-        tdSent.appendChild(cbSent);
-        tr.appendChild(tdSent);
-
         const tdScore = document.createElement('td');
-        const inpScore = document.createElement('input');
-        inpScore.type = 'number';
-        inpScore.className = 'cell-input';
-        inpScore.value = (sub.score === undefined || sub.score === null) ? '' : sub.score;
-        inpScore.addEventListener('change', () => {
-          const v = inpScore.value === '' ? null : Number(inpScore.value);
-          updateSub(s.id, a.id, { score: v });
+        const sel = document.createElement('select');
+        sel.className = 'cell-input score-select';
+        const hasScore = !(sub.score === undefined || sub.score === null || sub.score === '');
+        sel.classList.toggle('is-empty', !hasScore);
+
+        const maxScore = Number(a.maxScore) || 10;
+        const min = Math.max(1, Math.ceil(maxScore / 2));
+        const optionValues = [];
+        for (let v = min; v <= maxScore; v++) optionValues.push(v);
+        // ถ้าคะแนนเดิมอยู่นอกช่วงตัวเลือก (เช่น กรอกไว้ก่อนหน้านี้) ให้แทรกไว้เพื่อไม่ให้ข้อมูลหาย
+        if (hasScore && !optionValues.includes(sub.score)) {
+          optionValues.push(sub.score);
+          optionValues.sort((x, y) => x - y);
+        }
+
+        const optEmpty = document.createElement('option');
+        optEmpty.value = '';
+        optEmpty.textContent = 'ยังไม่ส่ง';
+        sel.appendChild(optEmpty);
+        optionValues.forEach(v => {
+          const o = document.createElement('option');
+          o.value = v;
+          o.textContent = v;
+          if (hasScore && sub.score === v) o.selected = true;
+          sel.appendChild(o);
         });
-        tdScore.appendChild(inpScore);
+
+        sel.addEventListener('change', () => {
+          const v = sel.value === '' ? null : Number(sel.value);
+          updateSub(s.id, a.id, { score: v, sent: v !== null });
+        });
+        tdScore.appendChild(sel);
         tr.appendChild(tdScore);
       });
 
