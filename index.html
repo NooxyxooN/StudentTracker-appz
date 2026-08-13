@@ -102,6 +102,13 @@
   thead tr.assign-row th{
     background:var(--blue-light);
   }
+  thead tr.group-row th.group-block{
+    background:#123a5c;
+    font-size:11px;
+    font-weight:700;
+    border-right:2px solid #0a2338;
+    padding:5px 4px;
+  }
   th.sticky-col, td.sticky-col{
     position:sticky;
     left:0;
@@ -128,23 +135,26 @@
   td.summary.toggle-col-filter:hover{ background:#ffe0b2; text-decoration:underline dotted; }
   td.summary.toggle-col-filter.active-col-filter{ background:#ff9800 !important; color:#fff; box-shadow:inset 0 0 0 2px #e65100; }
   .assign-block{ border-left:3px solid var(--blue-light); }
+  th.total-col{ color:#fff; font-size:11px; }
+  td.total-col{ font-weight:700; border-left:2px solid #0a2338; border-right:2px solid #0a2338; }
+  td.total-col.copied{ background:#8fd6a8 !important; color:#0c3d1f !important; }
   .cell-input{
     width:56px;
     padding:4px;
     border:1px solid var(--border);
     border-radius:4px;
     text-align:center;
-    background:var(--yellow);
+    background:#fff;
   }
   .score-select{
     cursor:pointer;
     font-weight:600;
-    background:var(--green);
+    background:#fff;
   }
   .score-select.is-empty{
-    background:var(--yellow);
+    background:#fff;
     font-weight:400;
-    color:#8a6d00;
+    color:#9a9a9a;
   }
   .fold-icon{
     cursor:pointer;
@@ -191,6 +201,18 @@
     font-size:12px;
   }
   .icon-btn:hover{ opacity:1; }
+  .group-add-btn{
+    background:rgba(255,255,255,0.25);
+    border-radius:50%;
+    width:16px;
+    height:16px;
+    line-height:16px;
+    padding:0;
+    font-size:12px;
+    font-weight:700;
+    opacity:0.9;
+  }
+  .group-add-btn:hover{ background:rgba(255,255,255,0.45); opacity:1; }
   .empty-state{
     padding:40px;
     text-align:center;
@@ -219,6 +241,41 @@
     display:flex;
     gap:6px;
   }
+  .subtab-nav{
+    display:flex;
+    gap:6px;
+    margin-bottom:10px;
+  }
+  .subtab-btn{
+    flex:1;
+    padding:8px;
+    border:none;
+    border-radius:6px;
+    background:#eee;
+    cursor:pointer;
+    font-size:13px;
+    font-weight:600;
+    color:#555;
+  }
+  .subtab-btn.active{ background:var(--blue); color:#fff; }
+  .known-assign-list{
+    max-height:240px;
+    overflow-y:auto;
+    text-align:left;
+  }
+  .known-assign-item{
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    margin-bottom:6px;
+    cursor:pointer;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:13px;
+  }
+  .known-assign-item:hover{ background:#eaf1fb; border-color:var(--blue-light); }
+  .known-assign-empty{ font-size:13px; color:#888; text-align:center; padding:20px 0; }
   .share-link-row input{
     flex:1;
     padding:8px;
@@ -391,6 +448,53 @@
   </div>
 </div>
 
+<div id="editAssignmentModal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:420px;text-align:left;">
+    <h3 style="text-align:center;">แก้ไขงาน</h3>
+    <label style="font-size:12px;color:#666;">ชื่องาน</label>
+    <input type="text" id="editAssignName" class="search-box" style="width:100%;margin-bottom:8px;" />
+    <label style="font-size:12px;color:#666;">คะแนนเต็ม</label>
+    <input type="number" id="editAssignMax" class="search-box" style="width:100%;margin-bottom:8px;" />
+    <div id="editAssignIndicatorSection" style="display:none;">
+      <label style="font-size:12px;color:#666;">สาระ</label>
+      <select id="editPickStrand" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+      <label style="font-size:12px;color:#666;">มาตรฐาน</label>
+      <select id="editPickStandard" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+      <label style="font-size:12px;color:#666;">ตัวชี้วัด</label>
+      <select id="editPickIndicator" class="search-box" style="width:100%;margin-bottom:8px;"></select>
+    </div>
+    <div id="editAssignCategorySection" style="display:none;">
+      <label style="font-size:12px;color:#666;">หมวดหมู่/หน่วยการเรียน</label>
+      <input type="text" id="editAssignCategory" class="search-box" placeholder="ทั่วไป" style="width:100%;margin-bottom:8px;" />
+    </div>
+    <button class="btn" id="saveEditAssignBtn" style="background:var(--green);width:100%;margin-top:8px;">บันทึก</button>
+    <button class="btn btn-danger" id="deleteEditAssignBtn" style="width:100%;margin-top:8px;">ลบงานนี้</button>
+    <button class="btn" id="cancelEditAssignBtn" style="margin-top:8px;background:#eee;width:100%;">ยกเลิก</button>
+  </div>
+</div>
+
+<div id="addAssignmentNameModal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:420px;text-align:left;">
+    <h3 style="text-align:center;">เพิ่มงาน</h3>
+    <p id="addAssignIndicatorLabel" style="text-align:center;margin-top:-8px;"></p>
+    <div class="subtab-nav">
+      <button type="button" class="subtab-btn active" id="addAssignTabExisting">งานที่มีอยู่</button>
+      <button type="button" class="subtab-btn" id="addAssignTabNew">เพิ่มงานใหม่</button>
+    </div>
+    <div id="addAssignExistingPanel">
+      <div id="addAssignExistingList" class="known-assign-list"></div>
+    </div>
+    <div id="addAssignNewPanel" style="display:none;">
+      <label style="font-size:12px;color:#666;">ชื่องาน</label>
+      <input type="text" id="addAssignNewName" class="search-box" placeholder="เช่น ใบงานที่ 4" style="width:100%;margin-bottom:8px;" />
+      <label style="font-size:12px;color:#666;">คะแนนเต็ม</label>
+      <input type="number" id="addAssignNewMax" class="search-box" style="width:100%;margin-bottom:8px;" />
+      <button class="btn" id="confirmAddAssignNewBtn" style="background:var(--green);width:100%;margin-top:4px;">เพิ่มงานนี้</button>
+    </div>
+    <button class="btn" id="cancelAddAssignBtn" style="margin-top:12px;background:#eee;width:100%;">ยกเลิก</button>
+  </div>
+</div>
+
 <nav class="tab-nav" id="tabNav" style="display:none">
   <button class="tab-btn active" data-tab="grades">📊 ตารางคะแนน</button>
   <button class="tab-btn" data-tab="feedback">💬 ข้อเสนอแนะ</button>
@@ -409,6 +513,11 @@
   <button class="btn" id="cancelSelectBtn" style="display:none;">ยกเลิก</button>
   <button class="btn" id="doneEditingBtn" style="display:none;background:var(--green);">✅ เสร็จสิ้นการแก้ไข</button>
   <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อ/เลขที่นักเรียน..." />
+  <select id="categoryLevelFilter" class="search-box" style="display:none;min-width:110px;">
+    <option value="strand">ระดับ: สาระ</option>
+    <option value="standard">ระดับ: มาตรฐาน</option>
+    <option value="indicator">ระดับ: ตัวชี้วัด</option>
+  </select>
   <select id="categoryFilter" class="search-box" style="min-width:140px;"></select>
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#333;">
     <input type="checkbox" id="hideCompletedToggle" style="width:16px;height:16px;" />
@@ -443,9 +552,71 @@
 // อัปเดตเลขนี้ทุกครั้งที่แก้ไขแอป: เพิ่มฟีเจอร์ใหม่ -> ขยับ MINOR, แก้บั๊ก -> ขยับ PATCH
 // อย่าลืมเพิ่มรายการใหม่ใน CHANGELOG ด้านล่างพร้อมกันทุกครั้ง (แสดงในแท็บ "ประวัติการอัปเดต")
 // ------------------------------------------------------------------
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.18.1';
 
 const CHANGELOG = [
+  { version: '1.18.1', date: '2026-08-13', notes: [
+    'แก้บั๊ก: ตัวเลข "ส่งแล้ว/ยังไม่ส่ง" ที่หัวคอลัมน์งานแต่ละอัน เคยนับจากนักเรียนทั้งห้อง ทำให้ตัวเลขไม่ตรงกับจำนวนแถวที่เห็นจริงตอนใช้ช่องค้นหากรองรายชื่อ (เช่น ค้นหาแล้วเหลือ 3 คน แต่ตัวเลขยังโชว์ 30) ตอนนี้นับจากรายชื่อที่กำลังแสดงอยู่จริงในตารางแล้ว',
+  ]},
+  { version: '1.18.0', date: '2026-08-13', notes: [
+    'เพิ่ม dropdown "ระดับ" ข้างตัวกรองหมวดหมู่ (แสดงเฉพาะห้องที่ผูกชุดตัวชี้วัด) เลือกได้ว่าจะกรองคอลัมน์งานตามระดับ สาระ / มาตรฐาน / ตัวชี้วัด แทนที่จะกรองตามระดับสาระอย่างเดียวเหมือนเดิม',
+  ]},
+  { version: '1.17.2', date: '2026-08-13', notes: [
+    'เพิ่มระยะห่างของสีระหว่างแต่ละข้อในมาตรฐานเดียวกัน จากช่วง 0.1 เป็นช่วง 0.3 (ข้อ 1 = 0.1, ข้อ 2 = 0.4, ข้อ 3 = 0.7, ข้อ 4 ขึ้นไป = 0.9) ทำให้สีของแต่ละข้อต่างกันชัดขึ้น',
+  ]},
+  { version: '1.17.1', date: '2026-08-13', notes: [
+    'คอลัมน์ "ชื่อ" กับ "นามสกุล" พับเก็บแยกจากกันได้อิสระแล้ว (เดิมพับพร้อมกันด้วยปุ่มเดียว)',
+  ]},
+  { version: '1.17.0', date: '2026-08-13', notes: [
+    'ป๊อปอัพ "เพิ่มงาน" (หลังเลือกตัวชี้วัด) เปลี่ยนจากกล่องพิมพ์ข้อความ (prompt) เป็นป๊อปอัพจริง มี 2 แท็บ: "งานที่มีอยู่" — รายการชื่องานที่เคยใช้กับตัวชี้วัดนี้มาก่อน (ไม่ว่าจากห้องไหน) คลิกแล้วเพิ่มได้ทันที และ "เพิ่มงานใหม่" — กรอกชื่อ+คะแนนเต็มเอง',
+  ]},
+  { version: '1.16.0', date: '2026-08-13', notes: [
+    'แถวชื่องาน (tab กลาง) เอาปุ่ม ✕ และช่องกรอกอินไลน์ออก เปลี่ยนเป็นแตะ/คลิกชื่องานเพื่อเปิดป๊อปอัพ "แก้ไขงาน" แทน ในป๊อปอัพแก้ชื่อ/คะแนนเต็ม/สาระ-มาตรฐาน-ตัวชี้วัด (หรือหมวดหมู่ถ้าห้องยังไม่ผูกชุดตัวชี้วัด) ได้ในที่เดียว ถ้าเปลี่ยนตัวชี้วัด งานจะย้ายไปอยู่กลุ่มตัวชี้วัดใหม่ทันที ปุ่มลบงาน (มีถามยืนยันก่อนลบ) ย้ายไปอยู่ในป๊อปอัพนี้ด้วย',
+    'แถวคะแนน (tab ล่าง) รวม "คะแนน" กับจำนวนคนส่งให้อยู่บรรทัดเดียวกัน ประหยัดพื้นที่ขึ้น',
+  ]},
+  { version: '1.15.0', date: '2026-08-13', notes: [
+    'แถวหัวตัวชี้วัด (tab บนสุด) เพิ่มปุ่ม "+" เล็กๆ ไว้เพิ่มแบบฝึกหัดให้ตัวชี้วัดนั้นได้ทันที โดยไม่ต้องเลือกสาระ/มาตรฐาน/ตัวชี้วัดใหม่',
+    'ปรับช่วงการไล่เฉดสีตามเลขข้อ จาก 0.1-1.0 เป็น 0.1-0.9',
+    'แถวชื่องาน (tab กลาง) ปรับให้กระชับขึ้นเป็น "ชื่องาน(คะแนนเต็ม)" บรรทัดเดียว ตัดแถวป้ายตัวชี้วัดออกเพราะซ้ำซ้อนกับแถวบนสุดแล้ว (ห้องที่ยังไม่ได้ผูกชุดตัวชี้วัดยังมีช่องหมวดหมู่ให้แก้เหมือนเดิม) พื้นหลังใช้สีอ่อนจากโทนของแถวบนสุด',
+    'แถวคะแนน (tab ล่าง) ตัดคำว่า "ส่งแล้ว/ยังไม่ส่ง" ออก เหลือแค่ไอคอนสถานะ+จำนวนคนในวงเล็บ สีเหมือนเดิม',
+    'แถวรายชื่อนักเรียนสลับสีขาว-เทาอ่อน อ่านง่ายขึ้น',
+  ]},
+  { version: '1.14.2', date: '2026-08-13', notes: [
+    'ปรับชุดสีแบ่งกลุ่มมาตรฐานใหม่ให้กลมกลืนกันขึ้น: ลดความสด/ความเข้มลง เพื่อไม่ให้สีโทนอุ่น (เช่น ส้ม) เข้มจนดูเป็นสีน้ำตาลหม่นเวลาอยู่ติดกับสีอื่น',
+    'กลุ่ม "งานทั่วไป" (งานที่ไม่ได้ผูกตัวชี้วัด) เปลี่ยนจากสีน้ำเงินกรมท่าเป็นสีเทากลางๆ แทน จะได้ไม่ตัดกับสีของกลุ่มตัวชี้วัดข้างเคียง',
+  ]},
+  { version: '1.14.1', date: '2026-08-13', notes: [
+    'ช่องคะแนน (ดรอปดาวน์) พื้นหลังเป็นสีขาวเสมอ ทั้งช่องที่กรอกแล้วและยังไม่ได้กรอก (ยกเลิกสีเขียวอ่อน/เหลืองอ่อนเดิม) เพื่อให้ตารางดูสะอาดตาขึ้น',
+    'ช่องคะแนนที่ยังไม่ได้กรอก เปลี่ยนข้อความจาก "ยังไม่ส่ง" เป็น "-"',
+    'ยกเลิกสีอ่อนพื้นหลังช่องคะแนนที่เคยไล่ตามกลุ่มมาตรฐาน (คงสีไว้เฉพาะแถบหัวตัวชี้วัดและคอลัมน์ "รวม")',
+  ]},
+  { version: '1.14.0', date: '2026-08-13', notes: [
+    'สีของแต่ละ "ข้อ" (ตัวชี้วัด) ในมาตรฐานเดียวกัน ตอนนี้ไล่ระดับอ่อน-เข้มตามเลขข้อแล้ว (ข้อ 1 อ่อนสุด ไล่เข้มขึ้นเรื่อยๆ ถึงข้อ 10 ขึ้นไปเข้มสุด) แทนที่จะใช้สีเดียวกันหมดทั้งมาตรฐาน — ยังคงเป็นโทนสี (hue) เดียวกันในมาตรฐานเดียวกันเหมือนเดิม',
+  ]},
+  { version: '1.13.0', date: '2026-08-13', notes: [
+    'เพิ่มระบบสีอัตโนมัติแบ่งกลุ่มมาตรฐาน (เช่น ส 1.1, ส 1.2) ให้ตารางดูง่ายขึ้น: แถบหัวตัวชี้วัด คอลัมน์ "รวม" และพื้นหลังช่องคะแนนของแต่ละมาตรฐาน จะได้สีพาสเทลของตัวเองแบบวนลูป ไม่ต้องตั้งค่าเอง',
+    'สีจะไม่ทับสีเขียว/เหลืองของสถานะ "ส่งแล้ว/ยังไม่ส่ง" ในช่องคะแนน (ยังดูสถานะได้ชัดเหมือนเดิม)',
+    'งานที่ไม่ได้ผูกตัวชี้วัด (กลุ่ม "งานทั่วไป") ยังใช้สีเดิมแบบไม่มีสีแยก',
+  ]},
+  { version: '1.12.0', date: '2026-08-13', notes: [
+    'ตัวชี้วัดที่มีงาน/แบบฝึกหัดมากกว่า 1 ชิ้น จะมีคอลัมน์ "รวม (เต็ม X)" เพิ่มมาต่อท้ายกลุ่มงานของตัวชี้วัดนั้น แสดงคะแนนรวมที่แปลงสัดส่วนแล้ว (เช่น เต็ม 10 มี 2 ชิ้น ได้ 10 กับ 8 จะขึ้น 9)',
+    'คอลัมน์ "รวม" กดเพื่อคัดลอกค่าได้เหมือนคอลัมน์คะแนนรวม/คะแนนแปลงอื่นๆ',
+    'ตัวชี้วัดที่มีงานชิ้นเดียว ไม่มีคอลัมน์ "รวม" เพิ่ม เพราะคะแนนของงานนั้นคือคะแนนตัวชี้วัดอยู่แล้ว',
+  ]},
+  { version: '1.11.0', date: '2026-08-13', notes: [
+    'จัดกลุ่มหัวตารางใหม่: เพิ่มแถวบนสุดแสดงตัวชี้วัด (เช่น "ส 1.1 ข้อ 1 (เต็ม 10)") ครอบคลุมทุกคอลัมน์งานที่ผูกกับตัวชี้วัดนั้นด้วย colspan',
+    'คอลัมน์งานถูกจัดเรียงใหม่ให้งานที่อยู่ในตัวชี้วัดเดียวกันอยู่ติดกันเป็นกลุ่ม เรียงกลุ่มตามลำดับสาระ/มาตรฐาน/ตัวชี้วัด งานที่ไม่ได้ผูกตัวชี้วัดจะถูกจัดเป็นกลุ่ม "งานทั่วไป" ต่อท้ายสุด',
+  ]},
+  { version: '1.10.0', date: '2026-08-13', notes: [
+    'ปุ่ม "+ เพิ่มงาน" สำหรับห้องที่ผูกชุดตัวชี้วัดแล้ว: ตอนนี้จะให้เลือกตัวชี้วัดก่อน แล้วระบบจะจำชื่องานที่เคยใช้กับตัวชี้วัดนั้นไว้ (ใช้ร่วมกันได้ทุกห้องที่ผูกชุดเดียวกัน) โชว์เป็นตัวเลขให้เลือกใช้ซ้ำได้ทันที ไม่ต้องพิมพ์ชื่อ+เต็มใหม่ทุกห้อง',
+    'ถ้าพิมพ์ชื่องานใหม่ที่ยังไม่เคยมี ระบบจะบันทึกเพิ่มเข้ารายการของตัวชี้วัดนั้นให้อัตโนมัติ เพื่อให้ห้องอื่นเลือกใช้ซ้ำได้ในครั้งถัดไป',
+  ]},
+  { version: '1.9.0', date: '2026-08-13', notes: [
+    'แต่ละตัวชี้วัดมีคะแนนเต็มของตัวเอง (ค่าเริ่มต้น 10 ตอนนำเข้า แก้ทีละข้อได้ทีหลังในหน้า "📐 ชุดตัวชี้วัด")',
+    'ถ้าตัวชี้วัดเดียวกันมีงาน/แบบฝึกหัดหลายชิ้น ระบบจะรวมคะแนนดิบ+เต็มดิบของทุกชิ้นก่อน แล้วคิดสัดส่วนกลับให้เท่ากับคะแนนเต็มของตัวชี้วัดนั้นเสมอ (เช่น ตัวชี้วัดเต็ม 10 มีแบบฝึกหัด 3 ชิ้น ชิ้นละเต็ม 10 ทำครบเต็มทั้ง 3 ชิ้น จะได้ 10 ไม่ใช่ 30) ก่อนนำไปรวมเป็นคะแนนรวม/คะแนนแปลงเต็ม 35 ต่อ',
+    'งานที่ไม่ได้ผูกตัวชี้วัด ยังนับคะแนนดิบตรงๆ แบบเดิม',
+    'หน้า "📐 ชุดตัวชี้วัด" กดที่ชื่อชุดเพื่อกางดู/แก้คะแนนเต็มของแต่ละตัวชี้วัดได้',
+  ]},
   { version: '1.8.0', date: '2026-08-13', notes: [
     'เพิ่มระบบ "ชุดตัวชี้วัด" (สาระ > มาตรฐาน > ตัวชี้วัด ตามหลักสูตรแกนกลาง) แทนที่ระบบหมวดหมู่ข้อความเดิม',
     'ปุ่ม "📐 ชุดตัวชี้วัด" ที่หัวแอป — นำเข้าชุดตัวชี้วัดจากไฟล์ Excel (ชีทแบบ "ตัวชี้วัดชั้นปี") ได้โดยตรง ชุดเดียวใช้ร่วมกันได้หลายห้องที่เรียนวิชา/ชั้นเดียวกัน',
@@ -507,7 +678,7 @@ const firebaseConfig = {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch
+  onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const setupBox = document.getElementById('setupBox');
@@ -832,26 +1003,101 @@ function runApp(){
   const standardsLinkClassName = document.getElementById('standardsLinkClassName');
   const standardsLinkSelect = document.getElementById('standardsLinkSelect');
 
+  const expandedIndicatorsCache = {}; // setId -> [indicator,...] แคชไว้ไม่ต้องโหลดซ้ำทุกครั้งที่เปิด
+  let expandedSetId = null; // ชุดที่กำลังกางดู/แก้เต็มตัวชี้วัดอยู่ในโมดัล
+
+  async function toggleExpandSet(setId){
+    if (expandedSetId === setId) { expandedSetId = null; renderStandardsModal(); return; }
+    expandedSetId = setId;
+    if (!expandedIndicatorsCache[setId]) {
+      const snap = await getDocs(query(collection(db, `standardsSets/${setId}/indicators`), orderBy('order', 'asc')));
+      expandedIndicatorsCache[setId] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    renderStandardsModal();
+  }
+
+  function renderIndicatorEditList(setId){
+    const wrap = document.createElement('div');
+    wrap.style.padding = '6px 4px 10px';
+    wrap.style.background = '#fafafa';
+    wrap.style.borderRadius = '6px';
+    wrap.style.margin = '4px 0 8px';
+    const list = expandedIndicatorsCache[setId] || [];
+    let lastStandard = '';
+    list.forEach(ind => {
+      if (ind.standardCode !== lastStandard) {
+        lastStandard = ind.standardCode;
+        const h = document.createElement('div');
+        h.style.fontSize = '11px';
+        h.style.fontWeight = '700';
+        h.style.color = 'var(--blue)';
+        h.style.margin = '6px 0 2px';
+        h.textContent = ind.standardCode;
+        wrap.appendChild(h);
+      }
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '6px';
+      row.style.fontSize = '11px';
+      row.style.padding = '2px 0';
+      const txt = document.createElement('span');
+      txt.style.flex = '1';
+      txt.textContent = `ข้อ ${ind.indicatorNo}. ${ind.indicatorText}`;
+      const maxLabel = document.createElement('span');
+      maxLabel.textContent = 'เต็ม';
+      maxLabel.style.color = '#777';
+      const maxInp = document.createElement('input');
+      maxInp.type = 'number';
+      maxInp.value = (ind.maxScore === undefined || ind.maxScore === null) ? 10 : ind.maxScore;
+      maxInp.style.width = '48px';
+      maxInp.style.padding = '2px';
+      maxInp.style.border = '1px solid var(--border)';
+      maxInp.style.borderRadius = '4px';
+      maxInp.style.textAlign = 'center';
+      maxInp.addEventListener('change', async () => {
+        const v = Number(maxInp.value) || 0;
+        await setDoc(doc(db, `standardsSets/${setId}/indicators`, ind.id), { maxScore: v }, { merge: true });
+        ind.maxScore = v;
+        if (currentStandardsSetId === setId && indicatorsMap[ind.id]) {
+          indicatorsMap[ind.id].maxScore = v;
+          render();
+        }
+      });
+      row.appendChild(txt);
+      row.appendChild(maxLabel);
+      row.appendChild(maxInp);
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
   function renderStandardsModal(){
     standardsSetList.innerHTML = '';
     if (allStandardsSets.length === 0) {
       standardsSetList.innerHTML = '<div style="color:#777;font-size:13px;text-align:center;">ยังไม่มีชุดตัวชี้วัด — กดปุ่มด้านบนเพื่อนำเข้าจาก Excel</div>';
     } else {
       allStandardsSets.forEach(s => {
+        const outer = document.createElement('div');
+        outer.style.borderBottom = '1px solid #eee';
+
         const row = document.createElement('div');
         row.style.display = 'flex';
         row.style.justifyContent = 'space-between';
         row.style.alignItems = 'center';
         row.style.padding = '6px 2px';
-        row.style.borderBottom = '1px solid #eee';
+        row.style.cursor = 'pointer';
         const label = document.createElement('div');
         label.style.fontSize = '13px';
-        label.innerHTML = `<b>${s.name || (s.subject + ' ' + s.grade)}</b><br><span style="color:#777;font-size:11px;">${s.subject || ''} · ${s.grade || ''} · ${s.indicatorCount || 0} ตัวชี้วัด</span>`;
+        const arrow = expandedSetId === s.id ? '▾' : '▸';
+        label.innerHTML = `${arrow} <b>${s.name || (s.subject + ' ' + s.grade)}</b><br><span style="color:#777;font-size:11px;">${s.subject || ''} · ${s.grade || ''} · ${s.indicatorCount || 0} ตัวชี้วัด (แตะเพื่อดู/แก้เต็มแต่ละข้อ)</span>`;
+        label.addEventListener('click', () => toggleExpandSet(s.id));
         const del = document.createElement('button');
         del.className = 'icon-btn';
         del.textContent = '✕';
         del.title = 'ลบชุดตัวชี้วัดนี้';
-        del.addEventListener('click', async () => {
+        del.addEventListener('click', async (e) => {
+          e.stopPropagation();
           if (!confirm(`ลบชุดตัวชี้วัด "${s.name}" ทั้งหมด? (ห้องเรียนที่ผูกอยู่จะกลายเป็นยังไม่ได้ผูก)`)) return;
           const isnap = await getDocs(collection(db, `standardsSets/${s.id}/indicators`));
           const batch = writeBatch(db);
@@ -861,7 +1107,9 @@ function runApp(){
         });
         row.appendChild(label);
         row.appendChild(del);
-        standardsSetList.appendChild(row);
+        outer.appendChild(row);
+        if (expandedSetId === s.id) outer.appendChild(renderIndicatorEditList(s.id));
+        standardsSetList.appendChild(outer);
       });
     }
 
@@ -925,6 +1173,8 @@ function runApp(){
       const defaultName = `${subject || 'วิชา'} ${grade || ''}`.trim();
       const setName = prompt(`พบตัวชี้วัด ${indicators.length} ข้อ (${subject || '?'} ${grade || '?'})\nตั้งชื่อชุดนี้ (แก้ไขได้):`, defaultName);
       if (!setName) return;
+      const defaultMaxStr = prompt('คะแนนเต็มเริ่มต้นต่อตัวชี้วัด 1 ข้อ (แก้ไขทีละข้อทีหลังได้ในหน้า "📐 ชุดตัวชี้วัด")', '10');
+      const defaultIndicatorMax = Number(defaultMaxStr) || 10;
 
       const setRef = await addDoc(standardsSetsCol, {
         name: setName, subject: subject || '', grade: grade || '',
@@ -936,11 +1186,11 @@ function runApp(){
         const batch = writeBatch(db);
         chunk.forEach(ind => {
           const ref = doc(collection(db, `standardsSets/${setRef.id}/indicators`));
-          batch.set(ref, ind);
+          batch.set(ref, { ...ind, maxScore: defaultIndicatorMax });
         });
         await batch.commit();
       }
-      alert(`นำเข้าชุดตัวชี้วัด "${setName}" สำเร็จ (${indicators.length} ข้อ)`);
+      alert(`นำเข้าชุดตัวชี้วัด "${setName}" สำเร็จ (${indicators.length} ข้อ คะแนนเต็มข้อละ ${defaultIndicatorMax})`);
       renderStandardsModal();
     } catch (err) {
       console.error(err);
@@ -1008,6 +1258,105 @@ function runApp(){
   });
   document.getElementById('cancelIndicatorBtn').addEventListener('click', () => { indicatorPickerModal.style.display = 'none'; });
   indicatorPickerModal.addEventListener('click', (e) => { if (e.target === indicatorPickerModal) indicatorPickerModal.style.display = 'none'; });
+
+  // ---- แก้ไขงาน (popup): แตะ/คลิกชื่องานในตารางเพื่อแก้ชื่อ/คะแนนเต็ม/สาระ-มาตรฐาน-ตัวชี้วัด (หรือหมวดหมู่ถ้าห้องยังไม่ผูกชุดตัวชี้วัด) แทนการพิมพ์แก้ตรงหัวคอลัมน์ ----
+  const editAssignmentModal = document.getElementById('editAssignmentModal');
+  const editAssignName = document.getElementById('editAssignName');
+  const editAssignMax = document.getElementById('editAssignMax');
+  const editAssignIndicatorSection = document.getElementById('editAssignIndicatorSection');
+  const editAssignCategorySection = document.getElementById('editAssignCategorySection');
+  const editAssignCategory = document.getElementById('editAssignCategory');
+  const editPickStrand = document.getElementById('editPickStrand');
+  const editPickStandard = document.getElementById('editPickStandard');
+  const editPickIndicator = document.getElementById('editPickIndicator');
+  let editingAssignmentId = null;
+
+  function populateEditPickStandards(){
+    const strand = editPickStrand.value;
+    const standards = [...new Set(indicatorsList.filter(i => i.strand === strand).map(i => i.standardCode))];
+    editPickStandard.innerHTML = '';
+    standards.forEach(code => {
+      const o = document.createElement('option');
+      o.value = code; o.textContent = code;
+      editPickStandard.appendChild(o);
+    });
+    populateEditPickIndicators();
+  }
+  function populateEditPickIndicators(){
+    const strand = editPickStrand.value;
+    const standardCode = editPickStandard.value;
+    const items = indicatorsList.filter(i => i.strand === strand && i.standardCode === standardCode);
+    editPickIndicator.innerHTML = '';
+    items.forEach(ind => {
+      const o = document.createElement('option');
+      o.value = ind.id;
+      o.textContent = `${ind.standardCode} ข้อ ${ind.indicatorNo}. ${ind.indicatorText}`.slice(0, 80);
+      editPickIndicator.appendChild(o);
+    });
+  }
+  editPickStrand.addEventListener('change', populateEditPickStandards);
+  editPickStandard.addEventListener('change', populateEditPickIndicators);
+
+  function openEditAssignmentModal(a){
+    editingAssignmentId = a.id;
+    editAssignName.value = a.name;
+    editAssignMax.value = (a.maxScore === undefined || a.maxScore === null) ? 10 : a.maxScore;
+    const useIndicators = currentStandardsSetId && indicatorsList.length > 0;
+    editAssignIndicatorSection.style.display = useIndicators ? 'block' : 'none';
+    editAssignCategorySection.style.display = useIndicators ? 'none' : 'block';
+    if (useIndicators) {
+      const strands = [...new Set(indicatorsList.map(i => i.strand))];
+      editPickStrand.innerHTML = '';
+      strands.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        editPickStrand.appendChild(o);
+      });
+      const currentInd = a.indicatorId ? indicatorsMap[a.indicatorId] : null;
+      if (currentInd) editPickStrand.value = currentInd.strand;
+      populateEditPickStandards();
+      if (currentInd) editPickStandard.value = currentInd.standardCode;
+      populateEditPickIndicators();
+      if (currentInd) editPickIndicator.value = currentInd.id;
+    } else {
+      editAssignCategory.value = a.category || '';
+    }
+    editAssignmentModal.style.display = 'flex';
+  }
+
+  document.getElementById('saveEditAssignBtn').addEventListener('click', async () => {
+    if (!editingAssignmentId) return;
+    const name = editAssignName.value.trim();
+    if (!name) return alert('กรุณากรอกชื่องาน');
+    const maxScore = Number(editAssignMax.value) || 0;
+    const useIndicators = currentStandardsSetId && indicatorsList.length > 0;
+    const patch = { name, maxScore };
+    if (useIndicators) {
+      const indicatorId = editPickIndicator.value;
+      if (!indicatorId) return alert('กรุณาเลือกตัวชี้วัด');
+      patch.indicatorId = indicatorId;
+      patch.category = '';
+    } else {
+      patch.category = editAssignCategory.value.trim();
+    }
+    await setDoc(doc(db, `classes/${currentClassId}/assignments`, editingAssignmentId), patch, { merge: true });
+    editAssignmentModal.style.display = 'none';
+    editingAssignmentId = null;
+  });
+  document.getElementById('deleteEditAssignBtn').addEventListener('click', async () => {
+    if (!editingAssignmentId) return;
+    const id = editingAssignmentId;
+    editAssignmentModal.style.display = 'none';
+    editingAssignmentId = null;
+    await deleteAssignment(id);
+  });
+  document.getElementById('cancelEditAssignBtn').addEventListener('click', () => {
+    editAssignmentModal.style.display = 'none';
+    editingAssignmentId = null;
+  });
+  editAssignmentModal.addEventListener('click', (e) => {
+    if (e.target === editAssignmentModal) { editAssignmentModal.style.display = 'none'; editingAssignmentId = null; }
+  });
 
   // ---- Import whole workbook: auto-create classes from student roster file ----
   // แข็งแรงกว่า parseStudentRows เพราะรองรับไฟล์ที่มีคอลัมน์ "เลขประจำตัว" คั่นกลางด้วย
@@ -1433,34 +1782,211 @@ function runApp(){
     });
   }
 
+  // ---- ป๊อปอัพ "เพิ่มงาน" สำหรับตัวชี้วัดที่เลือกไว้ — มีแท็บ "งานที่มีอยู่" (ชื่องานที่เคยใช้กับตัวชี้วัดนี้มาก่อน ไม่ว่าจากห้องไหนก็ตาม
+  // เพราะบันทึกไว้ที่ตัวชี้วัดเอง คลิกแล้วเพิ่มได้ทันที) กับแท็บ "เพิ่มงานใหม่" (กรอกชื่อ+คะแนนเต็มเอง) ----
+  const addAssignmentNameModal = document.getElementById('addAssignmentNameModal');
+  const addAssignIndicatorLabel = document.getElementById('addAssignIndicatorLabel');
+  const addAssignTabExisting = document.getElementById('addAssignTabExisting');
+  const addAssignTabNew = document.getElementById('addAssignTabNew');
+  const addAssignExistingPanel = document.getElementById('addAssignExistingPanel');
+  const addAssignNewPanel = document.getElementById('addAssignNewPanel');
+  const addAssignExistingList = document.getElementById('addAssignExistingList');
+  const addAssignNewName = document.getElementById('addAssignNewName');
+  const addAssignNewMax = document.getElementById('addAssignNewMax');
+  let addAssignIndicatorId = null;
+
+  function switchAddAssignTab(tab){
+    addAssignTabExisting.classList.toggle('active', tab === 'existing');
+    addAssignTabNew.classList.toggle('active', tab === 'new');
+    addAssignExistingPanel.style.display = tab === 'existing' ? 'block' : 'none';
+    addAssignNewPanel.style.display = tab === 'new' ? 'block' : 'none';
+  }
+  addAssignTabExisting.addEventListener('click', () => switchAddAssignTab('existing'));
+  addAssignTabNew.addEventListener('click', () => switchAddAssignTab('new'));
+
+  async function finishAddAssignment(name, maxScore, isNew){
+    const indicatorId = addAssignIndicatorId;
+    addAssignmentNameModal.style.display = 'none';
+    addAssignIndicatorId = null;
+    await createAssignment(name, maxScore, { indicatorId });
+    if (isNew) {
+      await setDoc(doc(db, `standardsSets/${currentStandardsSetId}/indicators`, indicatorId),
+        { knownAssignmentNames: arrayUnion({ name, maxScore }) },
+        { merge: true });
+    }
+  }
+
+  function openAddAssignmentNameModal(indicatorId){
+    const ind = indicatorsMap[indicatorId];
+    if (!ind) return;
+    addAssignIndicatorId = indicatorId;
+    addAssignIndicatorLabel.textContent = `${ind.standardCode} ข้อ ${ind.indicatorNo}. ${ind.indicatorText}`;
+    const known = ind.knownAssignmentNames || [];
+    addAssignExistingList.innerHTML = '';
+    if (known.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'known-assign-empty';
+      empty.textContent = 'ยังไม่เคยมีงานที่บันทึกไว้กับตัวชี้วัดนี้ — ไปที่แท็บ "เพิ่มงานใหม่" เพื่อสร้างงานแรก';
+      addAssignExistingList.appendChild(empty);
+    } else {
+      known.forEach(k => {
+        const item = document.createElement('div');
+        item.className = 'known-assign-item';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = k.name;
+        const maxSpan = document.createElement('span');
+        maxSpan.style.color = '#888';
+        maxSpan.style.fontSize = '12px';
+        maxSpan.textContent = `เต็ม ${k.maxScore}`;
+        item.appendChild(nameSpan);
+        item.appendChild(maxSpan);
+        item.addEventListener('click', () => finishAddAssignment(k.name, k.maxScore, false));
+        addAssignExistingList.appendChild(item);
+      });
+    }
+    addAssignNewName.value = '';
+    addAssignNewMax.value = String(Number(ind.maxScore) || 10);
+    switchAddAssignTab(known.length > 0 ? 'existing' : 'new');
+    addAssignmentNameModal.style.display = 'flex';
+  }
+
+  document.getElementById('confirmAddAssignNewBtn').addEventListener('click', () => {
+    const name = addAssignNewName.value.trim();
+    if (!name) return alert('กรุณากรอกชื่องาน');
+    const maxScore = Number(addAssignNewMax.value) || 10;
+    finishAddAssignment(name, maxScore, true);
+  });
+  document.getElementById('cancelAddAssignBtn').addEventListener('click', () => {
+    addAssignmentNameModal.style.display = 'none';
+    addAssignIndicatorId = null;
+  });
+  addAssignmentNameModal.addEventListener('click', (e) => {
+    if (e.target === addAssignmentNameModal) { addAssignmentNameModal.style.display = 'none'; addAssignIndicatorId = null; }
+  });
+
+  // เพิ่มงาน/แบบฝึกหัดให้ตัวชี้วัดที่รู้ id อยู่แล้ว (ใช้ทั้งจากปุ่ม "+ เพิ่มงาน" หลังเลือกตัวชี้วัด และปุ่ม "+" เล็กๆ ที่หัวตัวชี้วัดในตาราง)
+  async function addAssignmentForIndicator(indicatorId){
+    openAddAssignmentNameModal(indicatorId);
+  }
+
   document.getElementById('addAssignmentBtn').addEventListener('click', async () => {
     if (!currentClassId) return alert('เลือกหรือสร้างห้องเรียนก่อน');
-    const name = prompt('ชื่องาน/ใบงาน เช่น ใบงานที่ 4');
-    if (!name) return;
-    const maxStr = prompt('คะแนนเต็มของงานนี้', '10');
-    const maxScore = Number(maxStr) || 10;
 
     if (currentStandardsSetId && indicatorsList.length > 0) {
       openIndicatorPicker(async (indicatorId) => {
-        await createAssignment(name, maxScore, { indicatorId });
+        await addAssignmentForIndicator(indicatorId);
       });
     } else {
+      const name = prompt('ชื่องาน/ใบงาน เช่น ใบงานที่ 4');
+      if (!name) return;
+      const maxStr = prompt('คะแนนเต็มของงานนี้', '10');
+      const maxScore = Number(maxStr) || 10;
       const category = (prompt('หมวดหมู่/หน่วยการเรียน (เว้นว่างได้ ถ้าไม่แบ่งหมวด)', '') || '').trim();
       await createAssignment(name, maxScore, { category });
     }
   });
 
   // ---- Category filter & hide-completed toggle ----
+  // ห้องที่ผูกชุดตัวชี้วัดแล้ว เลือกได้ว่าจะกรองคอลัมน์งานตามระดับ สาระ / มาตรฐาน / ตัวชี้วัด (ค่าเริ่มต้น: สาระ เหมือนเดิม)
   let selectedCategory = 'ทั้งหมด';
+  let categoryFilterLevel = 'strand';
   let hideCompleted = false;
   const catOf = (a) => {
-    if (a.indicatorId && indicatorsMap[a.indicatorId]) return indicatorsMap[a.indicatorId].strand;
+    if (a.indicatorId && indicatorsMap[a.indicatorId]) {
+      const ind = indicatorsMap[a.indicatorId];
+      if (categoryFilterLevel === 'standard') return ind.standardCode;
+      if (categoryFilterLevel === 'indicator') return `${ind.standardCode} ข้อ ${ind.indicatorNo}`;
+      return ind.strand;
+    }
     return (a.category && a.category.trim()) ? a.category.trim() : 'ทั่วไป';
   };
   const categoryFilterEl = document.getElementById('categoryFilter');
+  const categoryLevelFilterEl = document.getElementById('categoryLevelFilter');
   const hideCompletedEl = document.getElementById('hideCompletedToggle');
   categoryFilterEl.addEventListener('change', () => { selectedCategory = categoryFilterEl.value; render(); });
+  categoryLevelFilterEl.addEventListener('change', () => {
+    categoryFilterLevel = categoryLevelFilterEl.value;
+    selectedCategory = 'ทั้งหมด';
+    render();
+  });
   hideCompletedEl.addEventListener('change', () => { hideCompleted = hideCompletedEl.checked; render(); });
+
+  // จัดกลุ่มงานที่แสดงอยู่ตามตัวชี้วัด เพื่อทำหัวตารางแบบจัดกลุ่ม (แถวบนสุด = ตัวชี้วัด ครอบคลุมทุกงานในตัวชี้วัดนั้น)
+  // เรียงกลุ่มตามลำดับตัวชี้วัด (สาระ>มาตรฐาน>ตัวชี้วัด) ในแต่ละกลุ่มเรียงงานตามลำดับที่เพิ่มเข้ามา
+  // งานที่ไม่ได้ผูกตัวชี้วัดไว้ จะถูกจัดไว้เป็นกลุ่ม "งานทั่วไป" ต่อท้ายสุด
+  function groupVisibleAssignments(list){
+    const byIndicator = {};
+    const indicatorOrder = [];
+    const loose = [];
+    list.forEach(a => {
+      const ind = a.indicatorId ? indicatorsMap[a.indicatorId] : null;
+      if (ind) {
+        if (!byIndicator[a.indicatorId]) { byIndicator[a.indicatorId] = []; indicatorOrder.push(a.indicatorId); }
+        byIndicator[a.indicatorId].push(a);
+      } else {
+        loose.push(a);
+      }
+    });
+    indicatorOrder.sort((x, y) => (indicatorsMap[x].order || 0) - (indicatorsMap[y].order || 0));
+    const groups = indicatorOrder.map(indId => ({
+      indicatorId: indId,
+      indicator: indicatorsMap[indId],
+      items: byIndicator[indId].slice().sort((p, q) => (p.order || 0) - (q.order || 0))
+    }));
+    if (loose.length > 0) {
+      groups.push({ indicatorId: null, indicator: null, items: loose.slice().sort((p, q) => (p.order || 0) - (q.order || 0)) });
+    }
+    return { groups, orderedAssignments: groups.flatMap(g => g.items) };
+  }
+
+  // ตัวชี้วัดที่มีงานมากกว่า 1 ชิ้น ถึงจะมีคอลัมน์ "รวม" เพิ่มมาให้เห็นคะแนนที่ normalize แล้ว
+  // (ตัวชี้วัดที่มีงานชิ้นเดียว คะแนนของงานนั้นก็คือคะแนนตัวชี้วัดอยู่แล้ว ไม่ต้องมีคอลัมน์ซ้ำ)
+  function groupHasTotalCol(g){
+    return !!g.indicator && g.items.length > 1;
+  }
+
+  // ----- สีแบ่งกลุ่มมาตรฐานอัตโนมัติ (ให้ตารางดูง่ายขึ้น เหมือนตัวอย่างไฟล์ Excel) -----
+  // แต่ละ "มาตรฐาน" (เช่น ส 1.1, ส 1.2) จะได้โทนสี (hue) ของตัวเองแบบวนลูป
+  // และภายในมาตรฐานเดียวกัน แต่ละ "ข้อ" (ตัวชี้วัด) จะไล่ระดับความเข้ม-อ่อนตามเลขข้อ
+  // โดยคิดค่าระดับ (0.1 - 1.0) จากเลขข้อ x 0.1 (ข้อ 1 = 0.1 อ่อนสุด, ข้อ 10 ขึ้นไป = 1.0 เข้มสุด)
+  // ใช้ทาแถบหัวตัวชี้วัด คอลัมน์ "รวม" และพื้นหลังช่องคะแนนในกลุ่มนั้น โดยไม่ไปทับสีเขียว/เหลืองของสถานะส่งงาน
+  const STANDARD_HUE_PALETTE = [210, 340, 150, 30, 265, 190, 0, 45]; // ฟ้า/ชมพูเข้ม/เขียว/ส้ม/ม่วง/ฟ้าอมเขียว/แดง/เหลือง
+  // กลุ่ม "งานทั่วไป" (ไม่ได้ผูกตัวชี้วัด) ใช้สีเทากลางๆ แทน เพื่อไม่ให้ไปตัดกับสีของกลุ่มตัวชี้วัดอื่นๆ ข้างๆ
+  const DEFAULT_GROUP_COLOR = { header: '#5b6472', total: '#3f4650', tint: null };
+
+  // สร้างข้อมูล: รหัสมาตรฐาน (standardCode) -> เฉดสี (hue) และลำดับข้อภายในมาตรฐานนั้น (เผื่อเลขข้อไม่ใช่ตัวเลขล้วน)
+  // ไล่ตามลำดับที่ตัวชี้วัดปรากฏจริงใน indicatorsList (คงที่ไม่กระพริบ)
+  function buildStandardColorInfo(){
+    const hueMap = {};
+    const positionMap = {};
+    const counters = {};
+    let hi = 0;
+    indicatorsList.forEach(ind => {
+      if (!(ind.standardCode in hueMap)) {
+        hueMap[ind.standardCode] = STANDARD_HUE_PALETTE[hi % STANDARD_HUE_PALETTE.length];
+        hi++;
+      }
+      counters[ind.standardCode] = (counters[ind.standardCode] || 0) + 1;
+      positionMap[ind.id] = counters[ind.standardCode];
+    });
+    return { hueMap, positionMap };
+  }
+  function shadeValueFor(ind, positionMap){
+    let n = Number(ind.indicatorNo);
+    if (!Number.isFinite(n) || n <= 0) n = positionMap[ind.id] || 1;
+    // ระยะห่างของสีระหว่างแต่ละข้อ: ข้อ 1 = 0.1, ข้อ 2 = 0.4, ข้อ 3 = 0.7, ข้อ 4 ขึ้นไป = 0.9 (เต็มเพดาน)
+    return Math.min(0.9, Math.max(0.1, 0.1 + (n - 1) * 0.3));
+  }
+  function colorForGroup(g, colorInfo){
+    if (!g.indicator) return DEFAULT_GROUP_COLOR;
+    const hue = (g.indicator.standardCode in colorInfo.hueMap) ? colorInfo.hueMap[g.indicator.standardCode] : 210;
+    const shade = shadeValueFor(g.indicator, colorInfo.positionMap);
+    return {
+      header: `hsl(${hue}, 40%, ${Math.round(52 - shade * 20)}%)`,
+      total: `hsl(${hue}, 44%, ${Math.round(36 - shade * 14)}%)`,
+      tint: `hsl(${hue}, 42%, ${Math.round(92 - shade * 12)}%)`,
+    };
+  }
 
   function subId(studentId, assignmentId){ return `${studentId}_${assignmentId}`; }
 
@@ -1614,13 +2140,13 @@ function runApp(){
   const STICKY_FOLD_WIDTH = 30;
 
   // คำนวณคอลัมน์ระบุตัวตนใหม่ทุกครั้งที่ render() เพราะความกว้างเปลี่ยนไปตามสถานะพับเก็บ
-  // เลขที่: ล็อกติดจอเสมอ พับไม่ได้ / คำนำหน้า: พับเก็บแยกได้เอง / ชื่อ+นามสกุล: ล็อกติดจอเหมือนเลขที่ และพับเก็บพร้อมกันด้วยปุ่มเดียว
+  // เลขที่: ล็อกติดจอเสมอ พับไม่ได้ / คำนำหน้า, ชื่อ, นามสกุล: ล็อกติดจอเหมือนเลขที่ (ยกเว้นคำนำหน้าไม่ล็อก) และพับเก็บแยกจากกันได้เอง
   function getStickyCols(){
     const cols = [
       { key: 'no', label: 'เลขที่', width: STICKY_FULL_WIDTH.no, locked: true, foldable: false, folded: false },
       { key: 'prefix', label: 'คำนำหน้า', width: foldPrefix ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.prefix, locked: false, foldable: true, folded: foldPrefix, foldKey: 'prefix' },
-      { key: 'name', label: 'ชื่อ', width: foldName ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.name, locked: true, foldable: true, folded: foldName, foldKey: 'name' },
-      { key: 'surname', label: 'นามสกุล', width: foldName ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.surname, locked: true, foldable: true, folded: foldName, foldKey: 'name' },
+      { key: 'name', label: 'ชื่อ', width: foldFirstName ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.name, locked: true, foldable: true, folded: foldFirstName, foldKey: 'first' },
+      { key: 'surname', label: 'นามสกุล', width: foldSurname ? STICKY_FOLD_WIDTH : STICKY_FULL_WIDTH.surname, locked: true, foldable: true, folded: foldSurname, foldKey: 'surname' },
     ];
     let acc = 0;
     const left = cols.map(c => { const l = acc; acc += c.width; return l; });
@@ -1629,7 +2155,8 @@ function runApp(){
 
   function toggleFold(foldKey){
     if (foldKey === 'prefix') foldPrefix = !foldPrefix;
-    else if (foldKey === 'name') foldName = !foldName;
+    else if (foldKey === 'first') foldFirstName = !foldFirstName;
+    else if (foldKey === 'surname') foldSurname = !foldSurname;
     render();
   }
 
@@ -1648,7 +2175,28 @@ function runApp(){
   }
 
   function computeRowData(){
-    const totalMaxScore = assignments.reduce((sum, a) => sum + (Number(a.maxScore) || 10), 0);
+    // จัดกลุ่มงานตามตัวชี้วัด (ถ้ามี) เพื่อ normalize คะแนนรวมของงานในตัวชี้วัดเดียวกันให้เท่ากับ
+    // คะแนนเต็มของตัวชี้วัดนั้นเสมอ เช่น ตัวชี้วัดเต็ม 10 มีแบบฝึกหัด 3 ชิ้น ชิ้นละเต็ม 10 (รวมดิบ 30)
+    // คิดเป็นสัดส่วนแล้วจะเหลือเต็ม 10 เท่าเดิม ไม่ว่าจะมีกี่ชิ้นก็ตาม
+    // งานที่ไม่ได้ผูกตัวชี้วัด (หรือห้องยังไม่ได้ผูกชุดตัวชี้วัด) นับคะแนนดิบตรงๆ แบบเดิม
+    const indicatorGroups = {}; // indicatorId -> { maxScore, assignments: [...] }
+    const looseAssignments = [];
+    assignments.forEach(a => {
+      const ind = a.indicatorId ? indicatorsMap[a.indicatorId] : null;
+      if (ind) {
+        if (!indicatorGroups[a.indicatorId]) {
+          indicatorGroups[a.indicatorId] = { maxScore: Number(ind.maxScore) || 10, assignments: [] };
+        }
+        indicatorGroups[a.indicatorId].assignments.push(a);
+      } else {
+        looseAssignments.push(a);
+      }
+    });
+
+    let totalMaxScore = 0;
+    Object.values(indicatorGroups).forEach(g => { totalMaxScore += g.maxScore; });
+    looseAssignments.forEach(a => { totalMaxScore += Number(a.maxScore) || 10; });
+
     return students.map(s => {
       let totalScore = 0, sentCount = 0;
       const scores = {};
@@ -1658,13 +2206,33 @@ function runApp(){
         scores[a.id] = (sub.score === undefined || sub.score === null) ? null : sub.score;
         sent[a.id] = !!sub.sent;
         if (sub.sent) sentCount++;
-        // ไม่ติ๊กส่ง = ไม่ได้คะแนนของงานนั้น
+      });
+
+      // งานที่ผูกตัวชี้วัด: รวมคะแนนดิบ+เต็มดิบของทุกชิ้นในตัวชี้วัดเดียวกันก่อน แล้วค่อย normalize เป็นสัดส่วนของเต็มตัวชี้วัด
+      // เก็บคะแนนที่ normalize แล้วของแต่ละตัวชี้วัดไว้ใน indicatorScores ด้วย เพื่อโชว์เป็นคอลัมน์ "รวม" ในตาราง
+      const indicatorScores = {};
+      Object.entries(indicatorGroups).forEach(([indId, g]) => {
+        let rawSum = 0, rawMax = 0;
+        g.assignments.forEach(a => {
+          rawMax += Number(a.maxScore) || 10;
+          const sub = subsMap[subId(s.id, a.id)] || {};
+          // ไม่ติ๊กส่ง = ไม่ได้คะแนนของงานนั้น
+          if (sub.sent && typeof sub.score === 'number') rawSum += sub.score;
+        });
+        const normalized = rawMax > 0 ? (rawSum / rawMax) * g.maxScore : 0;
+        indicatorScores[indId] = normalized;
+        totalScore += normalized;
+      });
+      // งานที่ไม่ได้ผูกตัวชี้วัด: นับคะแนนดิบตรงๆ แบบเดิม
+      looseAssignments.forEach(a => {
+        const sub = subsMap[subId(s.id, a.id)] || {};
         if (sub.sent && typeof sub.score === 'number') totalScore += sub.score;
       });
+
       const convertedScore = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 35 : 0;
       const roundedScore = Math.round(convertedScore);
       const pending = assignments.length - sentCount;
-      return { student: s, scores, sent, totalScore, convertedScore, roundedScore, sentCount, pending, totalMaxScore };
+      return { student: s, scores, sent, totalScore, convertedScore, roundedScore, sentCount, pending, totalMaxScore, indicatorScores };
     });
   }
 
@@ -1677,16 +2245,21 @@ function runApp(){
   let colFilterStudentId = null;
   let colFilterMode = null; // 'sent' | 'pending' | null
 
-  // สถานะพับเก็บคอลัมน์ระบุตัวตน: คำนำหน้าพับแยกได้เอง, ชื่อ+นามสกุลพับพร้อมกันด้วยปุ่มเดียว
+  // สถานะพับเก็บคอลัมน์ระบุตัวตน: คำนำหน้า/ชื่อ/นามสกุล พับเก็บแยกจากกันได้อิสระ
   // ชื่อ+นามสกุลถูกล็อกให้ติดจอเหมือน "เลขที่" เสมอ (ไม่ปลดล็อกบนมือถือเหมือนเดิมอีกต่อไป)
   let foldPrefix = false;
-  let foldName = false;
+  let foldFirstName = false;
+  let foldSurname = false;
 
   function isFullySent(a){
     return students.length > 0 && students.every(s => !!(subsMap[subId(s.id, a.id)] || {}).sent);
   }
 
   function refreshCategoryOptions(){
+    const useIndicators = currentStandardsSetId && indicatorsList.length > 0;
+    categoryLevelFilterEl.style.display = useIndicators ? '' : 'none';
+    if (useIndicators) categoryLevelFilterEl.value = categoryFilterLevel;
+
     const cats = ['ทั้งหมด', ...new Set(assignments.map(catOf))];
     const prevValue = categoryFilterEl.value || selectedCategory;
     categoryFilterEl.innerHTML = '';
@@ -1779,17 +2352,20 @@ function runApp(){
     }
 
     const { cols: stickyCols, left: stickyLeft } = getStickyCols();
+    const { groups: assignmentGroups, orderedAssignments } = groupVisibleAssignments(visibleAssignments);
+    visibleAssignments = orderedAssignments; // จัดคอลัมน์งานให้ตัวชี้วัดเดียวกันอยู่ติดกัน
+    const standardColorMap = buildStandardColorInfo(); // สีอัตโนมัติแยกตามมาตรฐาน + ไล่ระดับตามเลขข้อ
 
     const table = document.createElement('table');
 
-    // header row 1
+    // header row 0: กลุ่มตัวชี้วัด (ครอบคลุมทุกงานในตัวชี้วัดเดียวกันด้วย colspan)
     const thead = document.createElement('thead');
-    const row1 = document.createElement('tr');
-    row1.className = 'assign-row';
+    const row0 = document.createElement('tr');
+    row0.className = 'group-row';
     stickyCols.forEach((c, i) => {
-      const th = c.key === 'no' ? sortableTh(c.label, 'no', 2) : document.createElement('th');
+      const th = c.key === 'no' ? sortableTh(c.label, 'no', 3) : document.createElement('th');
       if (c.key !== 'no') {
-        th.rowSpan = 2;
+        th.rowSpan = 3;
         if (c.folded) {
           const icon = document.createElement('span');
           icon.className = 'fold-icon';
@@ -1820,120 +2396,48 @@ function runApp(){
       th.style.left = stickyLeft[i] + 'px';
       th.style.width = c.width + 'px';
       th.style.background = 'var(--blue)';
-      row1.appendChild(th);
+      row0.appendChild(th);
     });
     if (selectMode) {
       const thDel = document.createElement('th');
-      thDel.rowSpan = 2;
+      thDel.rowSpan = 3;
       thDel.textContent = '';
-      row1.appendChild(thDel);
+      row0.appendChild(thDel);
     }
-    visibleAssignments.forEach(a => {
+    assignmentGroups.forEach(g => {
       const th = document.createElement('th');
-      th.colSpan = 1;
-      th.className = 'assign-block';
-
+      th.colSpan = g.items.length + (groupHasTotalCol(g) ? 1 : 0);
+      th.className = 'group-block';
+      const gc = colorForGroup(g, standardColorMap);
+      th.style.background = gc.header;
       const wrap = document.createElement('div');
       wrap.style.display = 'flex';
-      wrap.style.flexDirection = 'column';
       wrap.style.alignItems = 'center';
-      wrap.style.gap = '3px';
-
-      const topRow = document.createElement('div');
-      topRow.style.display = 'flex';
-      topRow.style.alignItems = 'center';
-      topRow.style.gap = '4px';
-      const inp = document.createElement('input');
-      inp.className = 'assign-header-input';
-      inp.value = a.name;
-      inp.title = 'แก้ชื่องาน';
-      inp.style.width = '90px';
-      inp.addEventListener('change', async () => {
-        await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { name: inp.value }, { merge: true });
-      });
-      const del = document.createElement('button');
-      del.className = 'icon-btn';
-      del.textContent = '✕';
-      del.title = 'ลบงานนี้';
-      del.addEventListener('click', () => deleteAssignment(a.id));
-      topRow.appendChild(inp);
-      topRow.appendChild(del);
-
-      const maxRow = document.createElement('div');
-      maxRow.style.display = 'flex';
-      maxRow.style.alignItems = 'center';
-      maxRow.style.gap = '4px';
-      maxRow.style.fontSize = '10px';
-      maxRow.style.color = '#e5eefb';
-      const maxLabel = document.createElement('span');
-      maxLabel.textContent = 'เต็ม:';
-      const maxInp = document.createElement('input');
-      maxInp.type = 'number';
-      maxInp.value = (a.maxScore === undefined || a.maxScore === null) ? 10 : a.maxScore;
-      maxInp.title = 'แก้คะแนนเต็มของงานนี้';
-      maxInp.style.width = '42px';
-      maxInp.style.fontSize = '11px';
-      maxInp.style.textAlign = 'center';
-      maxInp.style.borderRadius = '4px';
-      maxInp.style.border = 'none';
-      maxInp.style.padding = '2px';
-      maxInp.addEventListener('change', async () => {
-        const v = Number(maxInp.value) || 0;
-        await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { maxScore: v }, { merge: true });
-      });
-      maxRow.appendChild(maxLabel);
-      maxRow.appendChild(maxInp);
-
-      const catRow = document.createElement('div');
-      catRow.style.display = 'flex';
-      catRow.style.alignItems = 'center';
-      catRow.style.gap = '4px';
-      catRow.style.fontSize = '10px';
-      catRow.style.color = '#e5eefb';
-
-      if (currentStandardsSetId && indicatorsList.length > 0) {
-        const catLabel = document.createElement('span');
-        catLabel.textContent = 'ตัวชี้วัด:';
-        const indBadge = document.createElement('span');
-        const ind = a.indicatorId ? indicatorsMap[a.indicatorId] : null;
-        indBadge.textContent = ind ? ind.standardCode + ' ข้อ ' + ind.indicatorNo : 'ยังไม่ระบุ ▾';
-        indBadge.title = ind ? ind.indicatorText : 'แตะเพื่อเลือกตัวชี้วัดของงานนี้';
-        indBadge.style.cursor = 'pointer';
-        indBadge.style.textDecoration = 'underline dotted';
-        indBadge.style.fontSize = '11px';
-        indBadge.addEventListener('click', () => {
-          openIndicatorPicker(async (indicatorId) => {
-            await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { indicatorId, category: '' }, { merge: true });
-          });
-        });
-        catRow.appendChild(catLabel);
-        catRow.appendChild(indBadge);
+      wrap.style.justifyContent = 'center';
+      wrap.style.gap = '6px';
+      const labelSpan = document.createElement('span');
+      if (g.indicator) {
+        labelSpan.textContent = `${g.indicator.standardCode} ข้อ ${g.indicator.indicatorNo} (เต็ม ${Number(g.indicator.maxScore) || 10})`;
+        th.title = g.indicator.indicatorText;
       } else {
-        const catLabel = document.createElement('span');
-        catLabel.textContent = 'หมวด:';
-        const catInp = document.createElement('input');
-        catInp.type = 'text';
-        catInp.value = a.category || '';
-        catInp.placeholder = 'ทั่วไป';
-        catInp.title = 'แก้หมวดหมู่/หน่วยการเรียนของงานนี้';
-        catInp.style.width = '58px';
-        catInp.style.fontSize = '11px';
-        catInp.style.textAlign = 'center';
-        catInp.style.borderRadius = '4px';
-        catInp.style.border = 'none';
-        catInp.style.padding = '2px';
-        catInp.addEventListener('change', async () => {
-          await setDoc(doc(db, `classes/${currentClassId}/assignments`, a.id), { category: catInp.value.trim() }, { merge: true });
-        });
-        catRow.appendChild(catLabel);
-        catRow.appendChild(catInp);
+        labelSpan.textContent = 'งานทั่วไป';
+        th.title = 'งานที่ไม่ได้ผูกตัวชี้วัด';
       }
-
-      wrap.appendChild(topRow);
-      wrap.appendChild(maxRow);
-      wrap.appendChild(catRow);
+      wrap.appendChild(labelSpan);
+      if (g.indicator) {
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'icon-btn group-add-btn';
+        addBtn.textContent = '+';
+        addBtn.title = `เพิ่มแบบฝึกหัดให้ ${g.indicator.standardCode} ข้อ ${g.indicator.indicatorNo}`;
+        addBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          addAssignmentForIndicator(g.indicatorId);
+        });
+        wrap.appendChild(addBtn);
+      }
       th.appendChild(wrap);
-      row1.appendChild(th);
+      row0.appendChild(th);
     });
     [
       ['คะแนนรวม', 'totalScore'],
@@ -1942,7 +2446,7 @@ function runApp(){
       ['ส่งแล้ว', 'sentCount'],
       ['ค้างส่ง', 'pending'],
     ].forEach(([label, key]) => {
-      const th = sortableTh(label, key, 2);
+      const th = sortableTh(label, key, 3);
       if (key === 'roundedScore') {
         const icon = document.createElement('span');
         icon.className = 'col-copy-icon';
@@ -1969,24 +2473,77 @@ function runApp(){
         });
         th.appendChild(icon);
       }
+      row0.appendChild(th);
+    });
+    thead.appendChild(row0);
+
+    // header row 1: ชื่องาน/เต็ม/ตัวชี้วัดของแต่ละงาน
+    const row1 = document.createElement('tr');
+    row1.className = 'assign-row';
+    assignmentGroups.forEach(g => {
+    const gc1 = colorForGroup(g, standardColorMap);
+    const lightBg = g.indicator ? gc1.tint : '#eef0f3';
+    const darkText = '#2a2a2a';
+    g.items.forEach(a => {
+      const th = document.createElement('th');
+      th.colSpan = 1;
+      th.className = 'assign-block';
+      th.style.background = lightBg;
+      th.style.color = darkText;
+      if (g.indicator) th.style.borderLeftColor = gc1.header;
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '3px';
+
+      // ชื่องาน(คะแนนเต็ม) แตะ/คลิกเพื่อเปิดป๊อปอัพแก้ไข (ชื่อ/คะแนนเต็ม/สาระ-มาตรฐาน-ตัวชี้วัด หรือหมวดหมู่)
+      const nameLabel = document.createElement('div');
+      nameLabel.style.cursor = 'pointer';
+      nameLabel.style.textDecoration = 'underline dotted';
+      nameLabel.style.color = darkText;
+      nameLabel.style.fontWeight = '700';
+      const maxScoreDisp = (a.maxScore === undefined || a.maxScore === null) ? 10 : a.maxScore;
+      nameLabel.textContent = `${a.name}(${maxScoreDisp})`;
+      nameLabel.title = 'แตะเพื่อแก้ไขงานนี้';
+      nameLabel.addEventListener('click', () => openEditAssignmentModal(a));
+      wrap.appendChild(nameLabel);
+
+      th.appendChild(wrap);
       row1.appendChild(th);
+    });
+    if (groupHasTotalCol(g)) {
+      const thTotal = document.createElement('th');
+      thTotal.rowSpan = 2;
+      thTotal.className = 'assign-block total-col';
+      thTotal.style.background = gc1.total;
+      thTotal.textContent = `รวม (เต็ม ${Number(g.indicator.maxScore) || 10})`;
+      thTotal.title = 'คะแนนรวมของตัวชี้วัดนี้ (แปลงสัดส่วนจากทุกชิ้นงานแล้ว)';
+      row1.appendChild(thTotal);
+    }
     });
     thead.appendChild(row1);
 
     const row2 = document.createElement('tr');
     visibleAssignments.forEach(a => {
-      const sentCountForA = students.filter(s => !!(subsMap[subId(s.id, a.id)] || {}).sent).length;
+      // นับจากรายชื่อที่กำลังแสดงอยู่จริงในตาราง (หลังกรองค้นหา/ตัวกรองอื่นๆ แล้ว) ไม่ใช่นับจากนักเรียนทั้งห้อง
+      // เพื่อไม่ให้ตัวเลขที่หัวคอลัมน์ไม่ตรงกับจำนวนแถวที่เห็นจริง
+      const sentCountForA = rowsData.filter(r => !!(subsMap[subId(r.student.id, a.id)] || {}).sent).length;
       const th = document.createElement('th');
       th.style.fontSize = '11px';
       th.style.padding = '0';
 
+      // รวม "คะแนน" กับจำนวนคนส่งเป็นบรรทัดเดียว: ข้อความ "คะแนน" คลิกเรียงลำดับ / ตัวเลขในวงเล็บคลิกสลับ ส่งแล้ว-ยังไม่ส่ง (พร้อมกรองแถว)
       const wrap = document.createElement('div');
       wrap.style.display = 'flex';
-      wrap.style.flexDirection = 'column';
+      wrap.style.alignItems = 'center';
+      wrap.style.justifyContent = 'center';
+      wrap.style.gap = '4px';
+      wrap.style.padding = '4px 2px';
 
-      const scoreLabel = document.createElement('div');
+      const scoreLabel = document.createElement('span');
       scoreLabel.classList.add('sortable');
-      scoreLabel.style.padding = '4px 2px';
       const arrow = sortState.key === `score_${a.id}` ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
       scoreLabel.textContent = 'คะแนน' + arrow;
       scoreLabel.title = 'คลิกเพื่อเรียงลำดับตามคะแนนงานนี้';
@@ -1996,20 +2553,20 @@ function runApp(){
         render();
       });
 
-      const sentLabel = document.createElement('div');
-      sentLabel.style.padding = '3px 2px';
-      sentLabel.style.borderTop = '1px solid rgba(255,255,255,0.25)';
+      const sentLabel = document.createElement('span');
       sentLabel.classList.add('sortable');
-      sentLabel.title = 'คลิกเพื่อกรอง: เฉพาะส่งแล้ว / เฉพาะยังไม่ส่ง / ทั้งหมด';
+      sentLabel.style.borderRadius = '4px';
+      sentLabel.style.padding = '1px 4px';
+      sentLabel.title = 'คลิกเพื่อสลับดูจำนวนคนส่งแล้ว/ยังไม่ส่ง (และกรองแถว) คลิกซ้ำอีกครั้งเพื่อยกเลิก';
       const isActive = sentFilterAssignmentId === a.id;
       if (!isActive) {
-        sentLabel.textContent = `ส่งแล้ว (${sentCountForA})`;
+        sentLabel.textContent = `(${sentCountForA})`;
       } else if (sentFilterMode === 'sent') {
-        sentLabel.textContent = `✅ ส่งแล้ว (${sentCountForA})`;
+        sentLabel.textContent = `✅ (${sentCountForA})`;
         sentLabel.style.background = '#1F8A3B';
       } else {
-        const notSentCount = students.length - sentCountForA;
-        sentLabel.textContent = `⬜ ยังไม่ส่ง (${notSentCount})`;
+        const notSentCount = rowsData.length - sentCountForA;
+        sentLabel.textContent = `⬜ (${notSentCount})`;
         sentLabel.style.background = '#B4541F';
       }
       sentLabel.addEventListener('click', () => {
@@ -2078,14 +2635,17 @@ function runApp(){
     }
 
     const tbody = document.createElement('tbody');
-    rowsData.forEach(rd => {
+    rowsData.forEach((rd, rowIdx) => {
       const s = rd.student;
       const tr = document.createElement('tr');
+      const zebraBg = (rowIdx % 2 === 1) ? '#f4f6f8' : '#ffffff'; // แถวขาวสลับเทาอ่อน อ่านง่ายขึ้น
+      tr.style.background = zebraBg;
 
       const tdNo = document.createElement('td');
       tdNo.className = 'sticky-col sticky-lock';
       tdNo.style.left = stickyLeft[0] + 'px';
       tdNo.style.width = stickyCols[0].width + 'px';
+      tdNo.style.background = zebraBg;
       tdNo.textContent = s.no;
       tr.appendChild(tdNo);
 
@@ -2099,10 +2659,10 @@ function runApp(){
       tdPrefix.className = (tdPrefix.className ? tdPrefix.className + ' ' : '') + 'sticky-col';
       tdPrefix.style.left = stickyLeft[1] + 'px';
       tdPrefix.style.width = stickyCols[1].width + 'px';
-      if (isEditingRow && !foldPrefix) tdPrefix.style.background = '#FFF6C9';
+      tdPrefix.style.background = (isEditingRow && !foldPrefix) ? '#FFF6C9' : zebraBg;
       tr.appendChild(tdPrefix);
 
-      const tdFirst = foldName
+      const tdFirst = foldFirstName
         ? makeFoldedCell()
         : (isEditingRow
           ? makeTextCell(s.name, (v) => updateStudentField(s.id, 'name', v))
@@ -2110,10 +2670,10 @@ function runApp(){
       tdFirst.className = (tdFirst.className ? tdFirst.className + ' ' : '') + 'sticky-col sticky-lock';
       tdFirst.style.left = stickyLeft[2] + 'px';
       tdFirst.style.width = stickyCols[2].width + 'px';
-      if (isEditingRow && !foldName) tdFirst.style.background = '#FFF6C9';
+      tdFirst.style.background = (isEditingRow && !foldFirstName) ? '#FFF6C9' : zebraBg;
       tr.appendChild(tdFirst);
 
-      const tdSurname = foldName
+      const tdSurname = foldSurname
         ? makeFoldedCell()
         : (isEditingRow
           ? makeTextCell(s.surname, (v) => updateStudentField(s.id, 'surname', v))
@@ -2121,7 +2681,7 @@ function runApp(){
       tdSurname.className = (tdSurname.className ? tdSurname.className + ' ' : '') + 'sticky-col sticky-lock';
       tdSurname.style.left = stickyLeft[3] + 'px';
       tdSurname.style.width = stickyCols[3].width + 'px';
-      if (isEditingRow && !foldName) tdSurname.style.background = '#FFF6C9';
+      tdSurname.style.background = (isEditingRow && !foldSurname) ? '#FFF6C9' : zebraBg;
       tr.appendChild(tdSurname);
 
       if (selectMode) {
@@ -2138,7 +2698,9 @@ function runApp(){
         tr.appendChild(tdDel);
       }
 
-      visibleAssignments.forEach(a => {
+      assignmentGroups.forEach(g => {
+      const gc2 = colorForGroup(g, standardColorMap);
+      g.items.forEach(a => {
         const sub = subsMap[subId(s.id, a.id)] || {};
         const tdScore = document.createElement('td');
         const sel = document.createElement('select');
@@ -2158,7 +2720,7 @@ function runApp(){
 
         const optEmpty = document.createElement('option');
         optEmpty.value = '';
-        optEmpty.textContent = 'ยังไม่ส่ง';
+        optEmpty.textContent = '-';
         sel.appendChild(optEmpty);
         optionValues.forEach(v => {
           const o = document.createElement('option');
@@ -2174,6 +2736,39 @@ function runApp(){
         });
         tdScore.appendChild(sel);
         tr.appendChild(tdScore);
+      });
+      if (groupHasTotalCol(g)) {
+        const tdTotal = document.createElement('td');
+        tdTotal.className = 'summary copyable total-col';
+        const val = fmt(rd.indicatorScores[g.indicatorId] || 0);
+        tdTotal.textContent = val;
+        tdTotal.style.background = gc2.total;
+        tdTotal.style.color = '#e5eefb';
+        tdTotal.title = 'คะแนนรวมของตัวชี้วัดนี้ (แปลงสัดส่วนแล้ว) — แตะเพื่อคัดลอก';
+        tdTotal.addEventListener('click', async () => {
+          const text = String(val);
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          const original = tdTotal.textContent;
+          tdTotal.textContent = '✓ คัดลอกแล้ว';
+          tdTotal.classList.add('copied');
+          setTimeout(() => {
+            tdTotal.textContent = original;
+            tdTotal.classList.remove('copied');
+          }, 900);
+        });
+        tr.appendChild(tdTotal);
+      }
       });
 
       const summaryCells = [
