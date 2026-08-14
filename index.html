@@ -391,7 +391,6 @@
     <img src="assets/logo.svg" alt="KNAN" style="width:28px;height:28px;border-radius:7px;" />
     KNAN — ระบบติดตามงานนักเรียน
   </h1>
-  <select id="classSelect"></select>
   <button class="btn" id="addClassBtn">+ ห้องเรียนใหม่</button>
   <button class="btn btn-danger" id="deleteClassBtn">ลบห้องนี้</button>
   <button class="btn" id="importWorkbookBtn">📚 นำเข้าทั้งไฟล์ (หลายห้อง)</button>
@@ -505,14 +504,12 @@
   <button class="btn" id="addStudentBtn">+ เพิ่มนักเรียน</button>
   <button class="btn" id="importBtn">📥 นำเข้ารายชื่อ (Excel/CSV)</button>
   <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" />
-  <button class="btn" id="addAssignmentBtn">+ เพิ่มงาน</button>
   <button class="btn" id="selectModeBtn">☑️ เลือกนักเรียน</button>
   <button class="btn btn-danger" id="deleteSelectedBtn" style="display:none;">🗑 ลบ (0)</button>
   <button class="btn" id="editSelectedBtn" style="display:none;">✏️ แก้ไข (0)</button>
   <button class="btn" id="moveSelectedBtn" style="display:none;">↕️ ย้ายตำแหน่ง (0)</button>
   <button class="btn" id="cancelSelectBtn" style="display:none;">ยกเลิก</button>
   <button class="btn" id="doneEditingBtn" style="display:none;background:var(--green);">✅ เสร็จสิ้นการแก้ไข</button>
-  <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อ/เลขที่นักเรียน..." />
   <select id="categoryLevelFilter" class="search-box" style="display:none;min-width:110px;">
     <option value="strand">ระดับ: สาระ</option>
     <option value="standard">ระดับ: มาตรฐาน</option>
@@ -526,6 +523,13 @@
 </div>
 
 <div class="status" id="statusLine"></div>
+
+<!-- แถบด่วน: เลือกชั้น/ห้อง, เพิ่มงาน, ค้นหานักเรียน — ไว้ใกล้ตารางที่สุด ไม่ต้องเลื่อนขึ้นไปบนสุดของหน้า -->
+<div class="toolbar" id="quickBar" style="display:none;">
+  <select id="classSelect" style="font-weight:700;"></select>
+  <button class="btn" id="addAssignmentBtn" style="background:var(--green);">+ เพิ่มงาน</button>
+  <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อ/เลขที่นักเรียน..." style="flex:1;min-width:160px;" />
+</div>
 
 <main id="mainArea"></main>
 
@@ -552,9 +556,12 @@
 // อัปเดตเลขนี้ทุกครั้งที่แก้ไขแอป: เพิ่มฟีเจอร์ใหม่ -> ขยับ MINOR, แก้บั๊ก -> ขยับ PATCH
 // อย่าลืมเพิ่มรายการใหม่ใน CHANGELOG ด้านล่างพร้อมกันทุกครั้ง (แสดงในแท็บ "ประวัติการอัปเดต")
 // ------------------------------------------------------------------
-const APP_VERSION = '1.18.1';
+const APP_VERSION = '1.19.0';
 
 const CHANGELOG = [
+  { version: '1.19.0', date: '2026-08-13', notes: [
+    'ย้าย "เลือกห้องเรียน" (จากหัวแอป), ปุ่ม "+ เพิ่มงาน" และช่องค้นหานักเรียน (จากแถบเครื่องมือเดิม) มาไว้เป็นแถบใหม่ติดกับตารางโดยตรง ลดการเลื่อนขึ้นไปบนสุดของหน้าเวลาจะสลับห้อง เพิ่มงาน หรือค้นหา',
+  ]},
   { version: '1.18.1', date: '2026-08-13', notes: [
     'แก้บั๊ก: ตัวเลข "ส่งแล้ว/ยังไม่ส่ง" ที่หัวคอลัมน์งานแต่ละอัน เคยนับจากนักเรียนทั้งห้อง ทำให้ตัวเลขไม่ตรงกับจำนวนแถวที่เห็นจริงตอนใช้ช่องค้นหากรองรายชื่อ (เช่น ค้นหาแล้วเหลือ 3 คน แต่ตัวเลขยังโชว์ 30) ตอนนี้นับจากรายชื่อที่กำลังแสดงอยู่จริงในตารางแล้ว',
   ]},
@@ -684,6 +691,7 @@ import {
 const setupBox = document.getElementById('setupBox');
 const appHeader = document.getElementById('appHeader');
 const toolbar = document.getElementById('toolbar');
+const quickBar = document.getElementById('quickBar');
 const statusLine = document.getElementById('statusLine');
 const mainArea = document.getElementById('mainArea');
 const classSelect = document.getElementById('classSelect');
@@ -697,6 +705,7 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
 function runApp(){
   appHeader.style.display = 'flex';
   toolbar.style.display = 'flex';
+  quickBar.style.display = 'flex';
 
   const versionBadge = document.getElementById('versionBadge');
   versionBadge.textContent = `KNAN v${APP_VERSION}`;
@@ -769,6 +778,7 @@ function runApp(){
   function switchTab(tab){
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     toolbar.style.display = tab === 'grades' ? 'flex' : 'none';
+    quickBar.style.display = tab === 'grades' ? 'flex' : 'none';
     statusLine.style.display = tab === 'grades' ? 'block' : 'none';
     mainArea.style.display = tab === 'grades' ? 'block' : 'none';
     feedbackView.style.display = tab === 'feedback' ? 'block' : 'none';
