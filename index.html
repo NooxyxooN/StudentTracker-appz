@@ -201,6 +201,10 @@
     font-size:12px;
   }
   .icon-btn:hover{ opacity:1; }
+  body.copy-mode table select{ pointer-events:none; }
+  tbody td{ user-select:none; -webkit-user-select:none; }
+  body.copy-mode tbody td{ cursor:cell; }
+  tbody td.cell-selected{ background:#cfe3ff !important; box-shadow:inset 0 0 0 1px #2E75B6; }
   .group-add-btn{
     background:rgba(255,255,255,0.25);
     border-radius:50%;
@@ -528,6 +532,8 @@
 <div class="toolbar" id="quickBar" style="display:none;">
   <select id="classSelect" style="font-weight:700;"></select>
   <button class="btn" id="addAssignmentBtn" style="background:var(--green);">+ เพิ่มงาน</button>
+  <button class="btn" id="copyModeBtn" title="เปิดโหมดเลือกช่อง: ลากเมาส์ (หรือแตะช่องเริ่มต้น แล้วแตะช่องสุดท้าย) เพื่อเลือกหลายช่อง แล้วกด Ctrl/Cmd+C หรือปุ่มคัดลอก">📋 เลือกช่อง</button>
+  <button class="btn" id="copySelBtn" style="display:none;background:#2E75B6;color:#fff;">คัดลอกที่เลือก</button>
   <input type="text" id="searchInput" class="search-box" placeholder="🔎 ค้นหาชื่อ/เลขที่นักเรียน..." style="flex:1;min-width:160px;" />
 </div>
 
@@ -556,9 +562,15 @@
 // อัปเดตเลขนี้ทุกครั้งที่แก้ไขแอป: เพิ่มฟีเจอร์ใหม่ -> ขยับ MINOR, แก้บั๊ก -> ขยับ PATCH
 // อย่าลืมเพิ่มรายการใหม่ใน CHANGELOG ด้านล่างพร้อมกันทุกครั้ง (แสดงในแท็บ "ประวัติการอัปเดต")
 // ------------------------------------------------------------------
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.20.1';
 
 const CHANGELOG = [
+  { version: '1.20.1', date: '2026-10-07', notes: [
+    'แก้: ลากเมาส์ในตารางแล้วเลือกช่วงช่อง (สี่เหลี่ยม) ได้เลยโดยไม่ต้องกดโหมด ไม่เลือกข้อความทั้งแถวแล้ว กด Ctrl/Cmd+C เพื่อคัดลอก (ถ้าจะเริ่มลากจากช่องคะแนนที่เป็นดรอปดาวน์ ให้เปิดโหมด "เลือกช่อง")',
+  ]},
+  { version: '1.20.0', date: '2026-10-07', notes: [
+    'เพิ่มปุ่ม "📋 เลือกช่อง" ในแถบเหนือตาราง: เปิดโหมดแล้วลากเมาส์เลือกหลายช่อง (กด Shift+คลิกเพื่อขยายช่วง หรือบนมือถือแตะช่องแรกแล้วแตะช่องสุดท้าย) จากนั้นกด Ctrl/Cmd+C หรือปุ่ม "คัดลอกที่เลือก" วางลง Excel/Google Sheets ได้ทันที (กด Esc เพื่อล้างการเลือก) ในโหมดนี้ช่องคะแนนจะไม่เปิดดรอปดาวน์ ปิดโหมดเพื่อกลับไปกรอกคะแนนตามเดิม',
+  ]},
   { version: '1.19.0', date: '2026-08-13', notes: [
     'ย้าย "เลือกห้องเรียน" (จากหัวแอป), ปุ่ม "+ เพิ่มงาน" และช่องค้นหานักเรียน (จากแถบเครื่องมือเดิม) มาไว้เป็นแถบใหม่ติดกับตารางโดยตรง ลดการเลื่อนขึ้นไปบนสุดของหน้าเวลาจะสลับห้อง เพิ่มงาน หรือค้นหา',
   ]},
@@ -2261,6 +2273,122 @@ function runApp(){
   let foldFirstName = false;
   let foldSurname = false;
 
+  // ---- โหมดเลือกช่อง + คัดลอก (วางลง Excel/Google Sheets ได้ คั่นช่องด้วย Tab คั่นแถวด้วยขึ้นบรรทัดใหม่) ----
+  let copyMode = false, selAnchor = null, selEnd = null, selDragging = false, lastPointerType = 'mouse';
+  const copyModeBtn = document.getElementById('copyModeBtn');
+  const copySelBtn = document.getElementById('copySelBtn');
+
+  function cellPos(td){
+    const tr = td.parentElement;
+    if (!tr || !tr.parentElement || tr.parentElement.tagName !== 'TBODY') return null;
+    return { r: Array.prototype.indexOf.call(tr.parentElement.rows, tr), c: td.cellIndex };
+  }
+  function selBounds(){
+    if (!selAnchor || !selEnd) return null;
+    return { r1: Math.min(selAnchor.r, selEnd.r), r2: Math.max(selAnchor.r, selEnd.r),
+             c1: Math.min(selAnchor.c, selEnd.c), c2: Math.max(selAnchor.c, selEnd.c) };
+  }
+  function applySelection(){
+    const tb = mainArea.querySelector('tbody');
+    if (!tb) return;
+    tb.querySelectorAll('td.cell-selected').forEach(td => td.classList.remove('cell-selected'));
+    const b = selBounds();
+    if (!b) return;
+    for (let r = b.r1; r <= b.r2; r++) {
+      const row = tb.rows[r];
+      if (!row) continue;
+      for (let c = b.c1; c <= b.c2; c++) { if (row.cells[c]) row.cells[c].classList.add('cell-selected'); }
+    }
+  }
+  function cellText(td){
+    const sel = td.querySelector('select');
+    if (sel) return sel.value === '' ? '' : (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
+    if (td.classList.contains('folded-cell')) return '';
+    return td.textContent.trim();
+  }
+  function selectionText(){
+    const tb = mainArea.querySelector('tbody');
+    const b = selBounds();
+    if (!tb || !b) return '';
+    const lines = [];
+    for (let r = b.r1; r <= b.r2; r++) {
+      const row = tb.rows[r];
+      if (!row) continue;
+      const cells = [];
+      for (let c = b.c1; c <= b.c2; c++) cells.push(row.cells[c] ? cellText(row.cells[c]) : '');
+      lines.push(cells.join('\t'));
+    }
+    return lines.join('\n');
+  }
+  async function copySelection(){
+    const text = selectionText();
+    if (!text && !selBounds()) return alert('ยังไม่ได้เลือกช่อง');
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    const b = selBounds();
+    const original = copySelBtn.textContent;
+    copySelBtn.textContent = `✓ คัดลอกแล้ว (${b.r2 - b.r1 + 1}×${b.c2 - b.c1 + 1})`;
+    setTimeout(() => { copySelBtn.textContent = original; }, 1200);
+  }
+  function clearSelection(){ selAnchor = null; selEnd = null; selDragging = false; applySelection(); }
+
+  copyModeBtn.addEventListener('click', () => {
+    copyMode = !copyMode;
+    document.body.classList.toggle('copy-mode', copyMode);
+    copyModeBtn.style.background = copyMode ? '#2E75B6' : '';
+    copyModeBtn.style.color = copyMode ? '#fff' : '';
+    copyModeBtn.textContent = copyMode ? '✕ ปิดโหมดเลือกช่อง' : '📋 เลือกช่อง';
+    copySelBtn.style.display = copyMode ? '' : 'none';
+    if (!copyMode) clearSelection();
+  });
+  copySelBtn.addEventListener('click', copySelection);
+
+  function attachCellSelection(table){
+    table.addEventListener('pointerdown', (e) => {
+      lastPointerType = e.pointerType || 'mouse';
+      if (lastPointerType === 'touch') return;
+      if (!copyMode && e.target.closest('select,input,button,a')) return; // โหมดปกติ: คลิกที่ช่องคะแนน/ช่องกรอกยังใช้งานได้ตามเดิม
+      const td = e.target.closest('tbody td');
+      const p = td && cellPos(td);
+      if (!p) return;
+      e.preventDefault();
+      if (e.shiftKey && selAnchor) selEnd = p; else { selAnchor = p; selEnd = p; }
+      selDragging = true;
+      applySelection();
+    });
+    // มือถือ/แท็บเล็ต: แตะช่องแรก แล้วแตะช่องสุดท้ายเพื่อขยายเป็นช่วง แตะครั้งที่ 3 เริ่มเลือกใหม่ (เลื่อนตารางได้ตามปกติ)
+    table.addEventListener('click', (e) => {
+      if (!copyMode || lastPointerType !== 'touch') return;
+      const td = e.target.closest('tbody td');
+      const p = td && cellPos(td);
+      if (!p) return;
+      if (!selAnchor || (selAnchor && selEnd && (selAnchor.r !== selEnd.r || selAnchor.c !== selEnd.c))) { selAnchor = p; selEnd = p; }
+      else { selEnd = p; }
+      applySelection();
+    });
+  }
+  document.addEventListener('pointermove', (e) => {
+    if (!selDragging) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const td = el && el.closest ? el.closest('tbody td') : null;
+    if (!td || !mainArea.contains(td)) return;
+    const p = cellPos(td);
+    if (p) { selEnd = p; applySelection(); }
+  });
+  document.addEventListener('pointerup', () => { selDragging = false; });
+  document.addEventListener('keydown', (e) => {
+    if (!selAnchor) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+      if (window.getSelection && window.getSelection().toString()) return;
+      e.preventDefault();
+      copySelection();
+    } else if (e.key === 'Escape') { clearSelection(); }
+  });
+
   function isFullySent(a){
     return students.length > 0 && students.every(s => !!(subsMap[subId(s.id, a.id)] || {}).sent);
   }
@@ -2847,6 +2975,8 @@ function runApp(){
 
     mainArea.innerHTML = '';
     mainArea.appendChild(table);
+    attachCellSelection(table);
+    applySelection();
     let statusMsg = `ห้อง: ${classSelect.selectedOptions[0]?.textContent || ''} · นักเรียน ${students.length} คน · แสดง ${visibleAssignments.length} จากทั้งหมด ${assignments.length} งาน · ข้อมูลซิงก์แบบเรียลไทม์`;
     if (colFilterStudentId && colFilterMode) {
       statusMsg += ` · 🔎 กรองเฉพาะงานที่ "${colFilterStudentName}" ${colFilterMode === 'sent' ? 'ส่งแล้ว' : 'ยังไม่ส่ง'} (แตะตัวเลขซ้ำเพื่อยกเลิก)`;
